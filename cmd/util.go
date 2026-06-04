@@ -6,12 +6,24 @@ import (
 	"strings"
 
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/rhevin/apple-compose/internal/compose"
 )
 
 // topologicalOrder wraps compose.TopologicalOrder for use in cmd package.
 func topologicalOrder(project *types.Project) ([]string, error) {
 	return compose.TopologicalOrder(project)
+}
+
+// resolveContainerName returns the full container name for a given service name or
+// container name. If the user passes the full container name (e.g. "testdata-db")
+// it is returned as-is. If they pass a service name (e.g. "db") it is prefixed.
+func resolveContainerName(proj, nameOrService string) string {
+	prefix := proj + "-"
+	if strings.HasPrefix(nameOrService, prefix) {
+		return nameOrService // already a full container name
+	}
+	return backend.ContainerName(proj, nameOrService)
 }
 
 // serviceNotFound returns a helpful error listing available service names.

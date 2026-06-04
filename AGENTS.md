@@ -6,7 +6,7 @@ Context for AI coding agents working in this repository.
 
 `apple-compose` is a Docker Compose-compatible CLI orchestrator for [Apple's native container CLI](https://github.com/apple/container). It parses `docker-compose.yml` using the official `compose-go` library and maps each service to `container run` shell invocations.
 
-**Target:** macOS 15+, Apple Silicon only. No daemon. No Docker socket.
+**Target:** macOS 15+, Apple Silicon only. No daemon. No Docker socket. Current release: v0.3.0.
 
 ## Architecture
 
@@ -25,12 +25,12 @@ Key files:
 | File | Purpose |
 |---|---|
 | `main.go` | Entry point, injects version |
-| `cmd/root.go` | Global flags, `loadProject()` helper |
+| `cmd/root.go` | Global flags, `loadProject()`, `resolveProjectName()`, `resolveTargets()` helpers |
 | `cmd/*.go` | One file per command |
-| `cmd/util.go` | Shared helpers: `serviceNotFound`, `topologicalOrder`, `serviceTargets` |
+| `cmd/util.go` | Shared: `serviceNotFound`, `topologicalOrder`, `serviceTargets`, `resolveContainerName` |
 | `internal/compose/loader.go` | Loads compose file via compose-go |
 | `internal/compose/order.go` | Topological sort for depends_on |
-| `internal/backend/apple.go` | Builds `container` CLI args, wraps all container operations |
+| `internal/backend/apple.go` | Builds `container` CLI args, wraps all container operations, `appleContainer` JSON struct |
 
 ## Conventions
 
@@ -41,64 +41,71 @@ Key files:
   - `com.apple-compose.project={project}`
   - `com.apple-compose.service={service}`
 - **Backend binary:** always the string `"container"` (Apple's CLI)
-- **Project loading:** always use `loadProject()` in `cmd/` — never call `compose.Load()` directly from commands
+- **Project loading:** always use `loadProject()` in `cmd/` — never call `compose.Load()` directly
+- **Commands that don't need compose file** (`ps`, `top`, `logs`, `stop`, `start`, `stats`): use `resolveProjectName()` + `resolveTargets()` — no hard failure if compose file missing
 
 ## Adding a new command
 
 1. Create `cmd/<name>.go`
-2. Define a `var <name>Cmd = &cobra.Command{...}` 
-3. Use `loadProject()` to load the compose file
-4. Use `serviceTargets(order, args)` for optional per-service filtering
-5. Use `serviceNotFound(name, project)` for missing service errors
+2. If command needs compose file: use `loadProject()`
+3. If command only needs project name: use `resolveProjectName()` + `resolveTargets()`
+4. Use `serviceNotFound(name, project)` for missing service errors
+5. Use `FParseErrWhitelist{UnknownFlags: true}` if command passes flags through to container
 6. Register in `cmd/root.go` `init()` → `rootCmd.AddCommand(...)`
 7. Add tests if the command has non-trivial logic
 
 ## Key constraints
 
-- **v0.1 is pull-only** — detect `build:` key and return an error from `RunArgs()`, not silently skip
-- **No `--restart` flag** — Apple container CLI does not support it; warn to stderr, do not pass the flag
-- **Network commands** — `container network create/delete` only exist on macOS 26+; wrap in graceful fallback (check error, warn, continue)
-- **Named volumes** — must call `os.MkdirAll` on the host path before passing `--volume` to container
-- **`container list --format json`** — use for all programmatic queries; fall back to plain `container list` if JSON fails
+- **Pull-only** — detect `build:` key and return error from `RunArgs()`, warn and skip
+- **No `--restart` flag** — Apple container CLI doesn't support it; warn to stderr, drop the flag
+- **Network commands** — `container network create/delete` only on macOS 26+; `EnsureNetwork` handles graceful fallback
+- **Named volumes + virtiofs** — `os.MkdirAll` before `--volume`; images that `chown` data dirs (postgres, mysql) fail with `Operation not permitted` — use `PGDATA=/tmp/pgdata` workaround
+- **`up` is idempotent** — checks container status before creating; skips running, restarts stopped
+- **DNS between services** — IP connectivity works on macOS 26+, but hostname resolution does not (Apple's vmnet has no DNS server). No `--hostname` flag available.
+- **`container list --format json`** — actual JSON schema: `status` (lowercase), `configuration.id`, `configuration.labels` (map), `configuration.image.reference`
 
 ## What Apple container CLI supports
 
 Commands we use: `run`, `stop`, `start`, `delete`, `list`, `logs`, `exec`, `copy`, `kill`, `stats`, `image pull`, `network create/delete/list`, `registry login/logout`
 
-Commands that do NOT exist in Apple container CLI (do not attempt to call them):
+Commands that do NOT exist (do not attempt to call):
 - `container pause` / `container unpause`
-- `container wait`
-- `container commit`
-- `container image push`
-- `container top` (use `exec <name> ps aux` instead)
-- `container restart` (use stop + start)
+- `container wait` / `container commit` / `container image push`
+- `container top` — use `exec <name> ps -eo user,pid,ppid,...` instead
+- `container restart` — use stop + start
+- `container run --restart` — flag does not exist
 
 ## Running tests
 
 ```sh
-go test ./...
+make test                  # unit tests, no container CLI needed
+make test-integration      # real containers, requires: container system start
+make lint                  # golangci-lint
+make fmt                   # gofmt + goimports
 ```
 
-Tests live in:
-- `internal/backend/apple_test.go` — RunArgs, ContainerName, NetworkName, volumes
-- `internal/backend/volumes_test.go` — named and anonymous volumes
-- `internal/compose/order_test.go` — topological ordering, cycle detection
-- `internal/compose/loader_test.go` — compose file parsing, env override
-
-All tests are unit tests — no Apple container CLI required to run them.
+Tests:
+- `internal/backend/apple_test.go` + `volumes_test.go` — RunArgs, labels, volumes
+- `internal/compose/order_test.go` + `loader_test.go` — ordering, parsing
+- `cmd/util_test.go` — serviceTargets, needsQuote
+- `integration/` — end-to-end with real containers (build tag: `integration`)
 
 ## Building
 
 ```sh
-make build    # produces ./apple-compose binary
-make test     # go test ./...
-make install  # copies binary to /usr/local/bin/
+make build        # ./apple-compose binary
+make install      # copies to /usr/local/bin/
+make release-dry  # test goreleaser locally
 ```
 
 ## Sample compose file
 
-`testdata/docker-compose.yml` exercises: named volumes, bind mounts, env vars, ports, depends_on, restart warnings. `testdata/nginx.conf` is the bind-mounted config for the web service.
+`testdata/docker-compose.yml` — nginx + postgres + redis. Uses `PGDATA=/tmp/pgdata` for postgres (virtiofs workaround). No named volumes.
 
 ```sh
-./apple-compose up --dry-run   # verify without running anything
+./apple-compose -f testdata/docker-compose.yml up --dry-run
+./apple-compose -f testdata/docker-compose.yml up
+./apple-compose -p testdata ps
+./apple-compose -p testdata top
+./apple-compose -f testdata/docker-compose.yml down
 ```

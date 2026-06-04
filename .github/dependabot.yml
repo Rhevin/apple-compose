@@ -13,6 +13,14 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: docker
+    directory: /testdata
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+    open-pull-requests-limit: 10
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

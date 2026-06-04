@@ -295,19 +295,19 @@ No daemon. No socket. Purely CLI invocations against Apple's native container ru
 | Project networking | ✅ (macOS 26+) | ✅ |
 | Global `--project-name` / `--profile` | ✅ | ❌ |
 | Tests | ✅ | ✅ |
-| Homebrew | 🔜 planned | ✅ |
+| Homebrew | ⏳ not yet | ✅ |
 
 ## Roadmap
 
-| Item | Status |
+| Item | Blocked by |
 |---|---|
-| Homebrew tap (`brew install apple-compose`) | 🔜 Planned |
-| `restart` policy support (when Apple container CLI adds `--restart`) | 🔜 Planned |
-| `build:` key support (when Apple container builder gets network access) | 🔜 Planned |
-| `healthcheck:` key support | 🔜 Planned |
-| `--scale` flag for multiple replicas | 🔜 Planned |
-| `pause` / `unpause` (when Apple container CLI supports it) | 🔜 Planned |
-| Service-name DNS on macOS 15 (userspace resolver) | 🔜 Planned |
+| Homebrew tap | Need stable release + tap repo setup |
+| `restart` policy | Apple container CLI `--restart` flag not yet available |
+| `build:` key support | Apple container builder lacks outbound network access |
+| `healthcheck:` key | No native health check API in Apple container CLI |
+| `--scale` / multiple replicas | Not yet supported |
+| `pause` / `unpause` | Not supported by Apple container CLI |
+| Service-name DNS on macOS 15 | Requires userspace DNS resolver sidecar |
 
 ## Contributing
 
@@ -336,11 +336,11 @@ make release-dry
 Integration tests run real containers and require `container system start` first.
 
 ```sh
-# Run all integration tests (timeout 10 min)
+# Run all integration tests (timeout 20 min)
 make test-integration
 
 # Run a specific test
-go test -tags integration -v -timeout 10m ./integration/ -run TestLifecycle
+go test -tags integration -v -timeout 20m ./integration/ -run TestLifecycle
 
 # Run without make
 go test -tags integration -v -timeout 10m ./integration/

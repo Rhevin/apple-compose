@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
+
+	"encoding/json"
 
 	"github.com/spf13/cobra"
 )
@@ -21,23 +22,24 @@ var lsCmd = &cobra.Command{
 		}
 
 		var containers []struct {
-			ID     string `json:"ID"`
-			Status string `json:"Status"`
-			Labels string `json:"Labels"`
+			Status        string `json:"status"`
+			Configuration struct {
+				ID     string            `json:"id"`
+				Labels map[string]string `json:"labels"`
+			} `json:"configuration"`
 		}
 		if err := json.Unmarshal(out, &containers); err != nil {
 			return fmt.Errorf("parsing container list: %w", err)
 		}
 
-		// Aggregate by project label
 		type projectInfo struct {
-			services map[string]string // service -> status
+			services map[string]string
 		}
 		projects := map[string]*projectInfo{}
 
 		for _, c := range containers {
-			proj := labelValue(c.Labels, "com.apple-compose.project")
-			svc := labelValue(c.Labels, "com.apple-compose.service")
+			proj := c.Configuration.Labels["com.apple-compose.project"]
+			svc := c.Configuration.Labels["com.apple-compose.service"]
 			if proj == "" {
 				continue
 			}
@@ -68,7 +70,6 @@ var lsCmd = &cobra.Command{
 				svcs = append(svcs, s)
 			}
 			sort.Strings(svcs)
-			// Overall status: running if all running, else degraded
 			allRunning := true
 			for _, st := range p.services {
 				if st != "running" {
@@ -84,14 +85,4 @@ var lsCmd = &cobra.Command{
 		fmt.Print(buf.String())
 		return nil
 	},
-}
-
-func labelValue(labels, key string) string {
-	for _, part := range strings.Split(labels, ",") {
-		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
-		if len(kv) == 2 && kv[0] == key {
-			return kv[1]
-		}
-	}
-	return ""
 }

@@ -33,6 +33,11 @@ var runCmd = &cobra.Command{
 			return serviceNotFound(svcName, project)
 		}
 
+		// Ensure network exists — run may be called without a prior `up`
+		if err := backend.EnsureNetwork(project.Name); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: could not create network: %v\n", err)
+		}
+
 		// Build run args from service config but override command
 		runArgs, err := backend.RunArgs(project.Name, svc)
 		if err != nil {

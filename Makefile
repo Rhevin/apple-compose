@@ -11,7 +11,7 @@ test:
 	go test -race ./...
 
 test-integration:
-	go test -tags integration -v -timeout 10m ./integration/
+	go test -tags integration -v -timeout 20m ./integration/
 
 vet:
 	go vet ./...

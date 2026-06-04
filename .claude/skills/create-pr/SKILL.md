@@ -35,8 +35,11 @@ Rules:
 - Types: `feat`, `fix`, `docs`, `test`, `chore`, `ci`, `refactor`, `perf`
 - Subject: imperative mood, max 72 chars, no period
 - No scope required
+- Keep it short — describe WHAT changed, not every detail (details go in body)
 
 Good: `feat: add watch command`
+Good: `fix: top skips stopped containers`
+Bad: `fix: top command now works without compose file and skips stopped containers`
 Bad: `Add watch command`, `feat(cmd): Add watch command.`
 
 ## 1 commit per PR rule

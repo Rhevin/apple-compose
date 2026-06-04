@@ -1,0 +1,39 @@
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/Rhevin/apple-compose/internal/backend"
+	"github.com/spf13/cobra"
+)
+
+var downCmd = &cobra.Command{
+	Use:   "down",
+	Short: "Stop and remove containers",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		project, err := loadProject()
+		if err != nil {
+			return fmt.Errorf("loading compose file: %w", err)
+		}
+
+		order, err := topologicalOrder(project)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Stopping project %q\n", project.Name)
+
+		// Tear down in reverse dependency order
+		for i := len(order) - 1; i >= 0; i-- {
+			name := order[i]
+			containerName := backend.ContainerName(project.Name, name)
+			fmt.Printf("  [-] %s\n", name)
+			if err := backend.Down(containerName); err != nil {
+				fmt.Printf("      warning: %v\n", err)
+			}
+		}
+
+		backend.DeleteNetwork(project.Name)
+		return nil
+	},
+}

@@ -54,7 +54,7 @@ changelog:
     - title: "Other"
       order: 999
 
-homebrew:
+brews:
   - name: apple-compose
     homepage: "https://github.com/Rhevin/apple-compose"
     description: "Docker Compose orchestrator for Apple Containers — run docker-compose.yml on Apple Silicon without Docker Desktop or OrbStack"

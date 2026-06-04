@@ -2,7 +2,7 @@ BIN     := apple-compose
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build test test-integration lint vet fmt coverage coverage-html install clean release-dry
+.PHONY: build test test-integration lint vet fmt coverage coverage-html install clean clean-containers release-dry
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BIN) .
@@ -36,6 +36,10 @@ install: build
 
 clean:
 	rm -f $(BIN) coverage.out coverage.html
+
+clean-containers:
+	-./$(BIN) -f testdata/docker-compose.yml down 2>/dev/null || true
+	-container prune 2>/dev/null || true
 
 release-dry:
 	goreleaser release --snapshot --clean

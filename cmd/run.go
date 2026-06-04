@@ -18,9 +18,10 @@ var (
 )
 
 var runCmd = &cobra.Command{
-	Use:   "run <service> [command] [args...]",
-	Short: "Run a one-off command on a service",
-	Args:  cobra.MinimumNArgs(1),
+	Use:                "run <service> [command] [args...]",
+	Short:              "Run a one-off command on a service",
+	Args:               cobra.MinimumNArgs(1),
+	FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		project, err := loadProject()
 		if err != nil {

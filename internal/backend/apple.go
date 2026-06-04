@@ -21,6 +21,18 @@ const (
 	LabelService = "com.apple-compose.service"
 )
 
+// appleContainer matches the actual JSON shape of `container list --format json`.
+type appleContainer struct {
+	Status        string `json:"status"`
+	Configuration struct {
+		ID    string `json:"id"`
+		Image struct {
+			Reference string `json:"reference"`
+		} `json:"image"`
+		Labels map[string]string `json:"labels"`
+	} `json:"configuration"`
+}
+
 // ContainerName returns the canonical name for a service container.
 func ContainerName(project, service string) string {
 	return fmt.Sprintf("%s-%s", project, service)
@@ -32,24 +44,33 @@ func NetworkName(project string) string {
 }
 
 // EnsureNetwork creates the project network if it doesn't exist.
-// Network commands require macOS 26+; on older systems this is a no-op with a warning.
+// Network commands require macOS 26+; on older systems this is a no-op.
 func EnsureNetwork(project string) error {
 	name := NetworkName(project)
 	out, err := exec.Command(bin, "network", "list", "--format", "json").Output()
 	if err != nil {
-		// network subcommand not available (macOS < 26) — skip silently
-		return nil
+		return nil // network subcommand not available (macOS < 26)
 	}
 
 	var networks []struct {
-		Name string `json:"Name"`
+		Name string `json:"name"`
 	}
-	if err := json.Unmarshal(out, &networks); err != nil {
-		return nil
+	// Try lowercase first, fall back to uppercase
+	if err := json.Unmarshal(out, &networks); err != nil || len(networks) == 0 {
+		var networksUpper []struct {
+			Name string `json:"Name"`
+		}
+		if err2 := json.Unmarshal(out, &networksUpper); err2 == nil {
+			for _, n := range networksUpper {
+				if n.Name == name {
+					return nil
+				}
+			}
+		}
 	}
 	for _, n := range networks {
 		if n.Name == name {
-			return nil // already exists
+			return nil
 		}
 	}
 
@@ -59,8 +80,7 @@ func EnsureNetwork(project string) error {
 
 // DeleteNetwork removes the project network.
 func DeleteNetwork(project string) {
-	name := NetworkName(project)
-	_ = run(bin, "network", "delete", name)
+	_ = run(bin, "network", "delete", NetworkName(project))
 }
 
 // RunArgs builds the `container run` argument list for a service.
@@ -80,18 +100,14 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		"--name", name,
 		"--label", fmt.Sprintf("%s=%s", LabelProject, project),
 		"--label", fmt.Sprintf("%s=%s", LabelService, svc.Name),
-		// Attach to shared project network for service-name DNS
 		"--network", network,
-		// Search domain: <service>.<project>_default resolves within the network
 		"--dns-search", network,
 	}
 
-	// Port mappings
 	for _, p := range svc.Ports {
 		args = append(args, "--publish", fmt.Sprintf("%s:%d", p.Published, p.Target))
 	}
 
-	// Environment variables
 	for k, v := range svc.Environment {
 		val := ""
 		if v != nil {
@@ -100,7 +116,6 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		args = append(args, "--env", fmt.Sprintf("%s=%s", k, val))
 	}
 
-	// Volumes: bind mounts and named volumes
 	for _, v := range svc.Volumes {
 		switch v.Type {
 		case "bind":
@@ -116,7 +131,6 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		}
 	}
 
-	// CPU / memory limits
 	if svc.MemLimit > 0 {
 		args = append(args, "--memory", fmt.Sprintf("%d", int64(svc.MemLimit)))
 	}
@@ -124,8 +138,6 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		args = append(args, "--cpus", fmt.Sprintf("%.2f", svc.CPUS))
 	}
 
-	// Restart policy: Apple container CLI does not yet support --restart.
-	// Warn if the compose file requests it so users aren't silently surprised.
 	if svc.Restart != "" && svc.Restart != "no" {
 		fmt.Fprintf(os.Stderr, "  WARNING: service %q has restart: %q — not supported by Apple container CLI yet, ignored\n", svc.Name, svc.Restart)
 	}
@@ -139,8 +151,6 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 	return args, nil
 }
 
-// namedVolumePath returns the host path for a named volume.
-// Stored under ~/.apple-compose/volumes/{project}/{volume}.
 func namedVolumePath(project, volume string) string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".apple-compose", "volumes", project, volume)
@@ -159,9 +169,7 @@ func Up(project string, svc types.ServiceConfig) error {
 	return cmd.Run()
 }
 
-// WaitHealthy polls until a container is running or timeout elapses.
-// Apple's container CLI has no native health check protocol yet, so we
-// poll `container list --format json` and wait for status == "running".
+// WaitHealthy polls until a container status is "running" or timeout elapses.
 func WaitHealthy(project, service string, timeout time.Duration) error {
 	name := ContainerName(project, service)
 	deadline := time.Now().Add(timeout)
@@ -175,23 +183,25 @@ func WaitHealthy(project, service string, timeout time.Duration) error {
 	return fmt.Errorf("service %q did not become healthy within %s", service, timeout)
 }
 
-type containerInfo struct {
-	ID     string `json:"ID"`
-	Status string `json:"Status"`
-	Labels map[string]string
+func listContainers() ([]appleContainer, error) {
+	out, err := exec.Command(bin, "list", "--all", "--format", "json").Output()
+	if err != nil {
+		return nil, err
+	}
+	var containers []appleContainer
+	if err := json.Unmarshal(out, &containers); err != nil {
+		return nil, err
+	}
+	return containers, nil
 }
 
 func containerStatus(name string) (string, error) {
-	out, err := exec.Command(bin, "list", "--all", "--format", "json").Output()
+	containers, err := listContainers()
 	if err != nil {
 		return "", err
 	}
-	var containers []containerInfo
-	if err := json.Unmarshal(out, &containers); err != nil {
-		return "", err
-	}
 	for _, c := range containers {
-		if c.ID == name {
+		if c.Configuration.ID == name {
 			return c.Status, nil
 		}
 	}
@@ -210,37 +220,20 @@ func Start(name string) error {
 
 // Down stops and removes a container.
 func Down(name string) error {
-	if err := run(bin, "stop", name); err != nil {
-		_ = err // ignore "not found" on stop
-	}
+	_ = run(bin, "stop", name)
 	return run(bin, "delete", name)
-}
-
-// containerJSON holds fields from `container list --format json`.
-type containerJSON struct {
-	ID     string `json:"ID"`
-	Image  string `json:"Image"`
-	Status string `json:"Status"`
-	Labels string `json:"Labels"` // "key=val,key2=val2"
 }
 
 // PS lists containers belonging to the given project, formatted as a table.
 func PS(project string) error {
-	out, err := exec.Command(bin, "list", "--all", "--format", "json").Output()
+	containers, err := listContainers()
 	if err != nil {
-		// Fall back to plain list if JSON not supported
 		return run(bin, "list")
 	}
 
-	var all []containerJSON
-	if err := json.Unmarshal(out, &all); err != nil {
-		return run(bin, "list")
-	}
-
-	// Filter by project label
-	var rows []containerJSON
-	for _, c := range all {
-		if strings.Contains(c.Labels, LabelProject+"="+project) {
+	var rows []appleContainer
+	for _, c := range containers {
+		if c.Configuration.Labels[LabelProject] == project {
 			rows = append(rows, c)
 		}
 	}
@@ -250,12 +243,13 @@ func PS(project string) error {
 		return nil
 	}
 
-	// Print table
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%-30s %-40s %-10s\n", "NAME", "IMAGE", "STATUS")
-	fmt.Fprintf(&buf, "%s\n", strings.Repeat("-", 82))
+	fmt.Fprintf(&buf, "%-30s %-45s %-10s\n", "NAME", "IMAGE", "STATUS")
+	fmt.Fprintf(&buf, "%s\n", strings.Repeat("-", 87))
 	for _, c := range rows {
-		fmt.Fprintf(&buf, "%-30s %-40s %-10s\n", c.ID, c.Image, c.Status)
+		svc := c.Configuration.Labels[LabelService]
+		name := ContainerName(project, svc)
+		fmt.Fprintf(&buf, "%-30s %-45s %-10s\n", name, c.Configuration.Image.Reference, c.Status)
 	}
 	fmt.Print(buf.String())
 	return nil

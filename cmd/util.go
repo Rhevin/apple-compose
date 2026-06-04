@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/Rhevin/apple-compose/internal/compose"
+	"github.com/compose-spec/compose-go/v2/types"
 )
 
 // topologicalOrder wraps compose.TopologicalOrder for use in cmd package.

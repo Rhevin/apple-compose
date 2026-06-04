@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/Rhevin/apple-compose/internal/backend"
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/spf13/cobra"
 )
 

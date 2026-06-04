@@ -2,7 +2,7 @@ BIN     := apple-compose
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build test test-integration lint vet coverage coverage-html install clean release-dry
+.PHONY: build test test-integration lint vet fmt coverage coverage-html install clean release-dry
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BIN) .
@@ -15,6 +15,9 @@ test-integration:
 
 vet:
 	go vet ./...
+
+fmt:
+	gofmt -w . cmd/ internal/ integration/
 
 lint:
 	golangci-lint run --timeout=5m

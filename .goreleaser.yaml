@@ -34,15 +34,17 @@ checksum:
 
 changelog:
   sort: asc
-  use: github
+  use: git
+  format: "{{.SHA}}: {{.Message}}"
+  abbrev: 7
   filters:
     exclude:
       - "^docs:"
       - "^chore:"
       - "^ci:"
       - "^test:"
-      - Merge pull request
-      - Merge branch
+      - "^Merge pull request"
+      - "^Merge branch"
   groups:
     - title: "New features"
       regexp: "^feat"

@@ -75,7 +75,11 @@ func EnsureNetwork(project string) error {
 	}
 
 	fmt.Printf("  [net] creating network %q\n", name)
-	return run(bin, "network", "create", name)
+	cmd := exec.Command(bin, "network", "create", name)
+	cmd.Stdout = os.Stdout
+	// Suppress stderr — "already exists" error is not actionable
+	_ = cmd.Run()
+	return nil
 }
 
 // DeleteNetwork removes the project network.
@@ -157,7 +161,24 @@ func namedVolumePath(project, volume string) string {
 }
 
 // Up starts a container for the given service (detached).
+// If the container already exists and is running, it is skipped.
+// If it exists but is stopped, it is started without recreating.
 func Up(project string, svc types.ServiceConfig) error {
+	name := ContainerName(project, svc.Name)
+
+	status, err := containerStatus(name)
+	if err == nil {
+		switch status {
+		case "running":
+			fmt.Printf("  [=] %s (already running)\n", svc.Name)
+			return nil
+		default:
+			fmt.Printf("  [>] %s (restarting stopped container)\n", svc.Name)
+			return Start(name)
+		}
+	}
+
+	// Container doesn't exist — create and start it
 	args, err := RunArgs(project, svc)
 	if err != nil {
 		return err

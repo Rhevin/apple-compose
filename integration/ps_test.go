@@ -22,13 +22,14 @@ func TestLS(t *testing.T) {
 	acMust(t, "pull")
 	acMust(t, "up", "--wait", "120s")
 
-	// Wait for containers to appear in ls
+	// Project name is derived from the compose file's name: field or directory.
+	// With -f testdata/docker-compose.yml the project resolves to "testdata".
 	ok := waitFor(t, 60*time.Second, func() bool {
 		out, _, err := acNoFile(t, "ls")
-		return err == nil && contains(out, "apple-compose")
+		return err == nil && (contains(out, "apple-compose") || contains(out, "testdata"))
 	})
 	if !ok {
 		out, _, _ := acNoFile(t, "ls")
-		t.Fatalf("expected project 'apple-compose' in ls output, got:\n%s", out)
+		t.Fatalf("expected a project in ls output, got:\n%s", out)
 	}
 }

@@ -37,13 +37,6 @@ Pin a specific version:
 VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/Rhevin/apple-compose/main/install.sh | sh
 ```
 
-### Homebrew
-
-```sh
-brew tap Rhevin/apple-compose
-brew install apple-compose
-```
-
 ### Build from source
 
 ```sh
@@ -301,7 +294,19 @@ No daemon. No socket. Purely CLI invocations against Apple's native container ru
 | Project networking | ✅ (macOS 26+) | ✅ |
 | Global `--project-name` / `--profile` | ✅ | ❌ |
 | Tests | ✅ | ✅ |
-| Homebrew | ✅ | ✅ |
+| Homebrew | 🔜 planned | ✅ |
+
+## Roadmap
+
+| Item | Status |
+|---|---|
+| Homebrew tap (`brew install apple-compose`) | 🔜 Planned |
+| `restart` policy support (when Apple container CLI adds `--restart`) | 🔜 Planned |
+| `build:` key support (when Apple container builder gets network access) | 🔜 Planned |
+| `healthcheck:` key support | 🔜 Planned |
+| `--scale` flag for multiple replicas | 🔜 Planned |
+| `pause` / `unpause` (when Apple container CLI supports it) | 🔜 Planned |
+| Service-name DNS on macOS 15 (userspace resolver) | 🔜 Planned |
 
 ## Contributing
 

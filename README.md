@@ -343,6 +343,8 @@ OrbStack  █████████░░░░░░░░░░░  0.98s
 Apple     ████████████████████  2.08s
 ```
 
+> **[Full analysis and findings →](benchmark/README.md)** — explains why the gaps exist and what they actually mean.
+>
 > Run it yourself: `./benchmark/benchmark.sh` — requires OrbStack and Apple Container installed.
 
 ## Roadmap

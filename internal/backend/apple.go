@@ -25,8 +25,10 @@ const (
 type appleContainer struct {
 	Status        string `json:"status"`
 	Configuration struct {
-		ID     string            `json:"id"`
-		Image  struct{ Reference string `json:"reference"` } `json:"image"`
+		ID    string `json:"id"`
+		Image struct {
+			Reference string `json:"reference"`
+		} `json:"image"`
 		Labels map[string]string `json:"labels"`
 	} `json:"configuration"`
 }

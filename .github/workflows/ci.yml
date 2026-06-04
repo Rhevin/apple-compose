@@ -33,6 +33,15 @@ jobs:
           name: coverage
           path: coverage.out
 
+  vuln-check:
+    name: Vulnerability check
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: go.mod
+
   goreleaser-check:
     name: GoReleaser config check
     runs-on: ubuntu-latest

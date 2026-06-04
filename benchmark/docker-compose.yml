@@ -1,0 +1,7 @@
+name: benchmark
+
+services:
+  bench:
+    image: alpine:3.20
+    volumes:
+      - ${BENCH_MOUNT:-/tmp}:/mnt

@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 
+	"github.com/creack/pty"
 	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
@@ -98,10 +101,30 @@ var runCmd = &cobra.Command{
 
 		fmt.Printf("  [run] %s\n", svcName)
 		c := exec.Command("container", filtered...)
-		c.Stdin = os.Stdin
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		return c.Run()
+
+		// The `container` CLI only streams output when its stdout is a TTY.
+		// When apple-compose stdout is not a TTY (e.g. captured via $(...) or
+		// piped), we use a PTY so container always forwards container output.
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			c.Stdin = os.Stdin
+			c.Stdout = os.Stdout
+			c.Stderr = os.Stderr
+			return c.Run()
+		}
+
+		ptmx, err := pty.Start(c)
+		if err != nil {
+			// PTY unavailable — fall back to direct stdio
+			c.Stdin = os.Stdin
+			c.Stdout = os.Stdout
+			c.Stderr = os.Stderr
+			return c.Run()
+		}
+		defer func() { _ = ptmx.Close() }()
+
+		// Forward PTY output to stdout; stderr from container merges into the PTY.
+		io.Copy(os.Stdout, ptmx) //nolint:errcheck
+		return c.Wait()
 	},
 }
 
@@ -111,4 +134,7 @@ func init() {
 	runCmd.Flags().BoolVar(&runRM, "rm", true, "Remove container after run")
 	runCmd.Flags().StringArrayVarP(&runEnv, "env", "e", nil, "Set environment variables")
 	runCmd.Flags().StringVar(&runEntrypoint, "entrypoint", "", "Override the entrypoint")
+	// Stop flag parsing after service name so that flags in the container
+	// command (e.g. sh -c "...") are not consumed by cobra.
+	runCmd.Flags().SetInterspersed(false)
 }

@@ -13,15 +13,14 @@ func TestExec(t *testing.T) {
 	acMust(t, "pull", "db")
 	acMust(t, "up", "--wait", "120s")
 
-	// Postgres initializes its data dir on first run — can take a while.
-	// Poll with a longer timeout and accept either "accepting connections" or
-	// a successful exit from pg_isready (exit 0).
-	ok := waitFor(t, 3*time.Minute, func() bool {
-		_, _, err := ac(t, "exec", "db", "pg_isready", "-U", "app")
+	// Wait for postgres to be ready — use pg_isready without flags
+	// (avoids cobra intercepting -U as its own flag)
+	ok := waitFor(t, 2*time.Minute, func() bool {
+		_, _, err := ac(t, "exec", "db", "pg_isready")
 		return err == nil
 	})
 	if !ok {
-		t.Fatal("db did not become ready within 3 minutes")
+		t.Fatal("db did not become ready within 2 minutes")
 	}
 
 	out := acMust(t, "exec", "db", "echo", "hello-from-container")

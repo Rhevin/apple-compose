@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rhevin/apple-compose/internal/compose"
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/rhevin/apple-compose/internal/compose"
 	"github.com/spf13/cobra"
 )
 

@@ -195,6 +195,39 @@ func listContainers() ([]appleContainer, error) {
 	return containers, nil
 }
 
+// ContainerStatus returns the status of a container by name.
+func ContainerStatus(name string) (string, error) {
+	return containerStatus(name)
+}
+
+// ContainerInfo holds basic info about a running container.
+type ContainerInfo struct {
+	Name    string
+	Service string
+	Status  string
+	Image   string
+}
+
+// ListContainersForProject returns all containers belonging to a project.
+func ListContainersForProject(project string) ([]ContainerInfo, error) {
+	containers, err := listContainers()
+	if err != nil {
+		return nil, err
+	}
+	var result []ContainerInfo
+	for _, c := range containers {
+		if c.Configuration.Labels[LabelProject] == project {
+			result = append(result, ContainerInfo{
+				Name:    c.Configuration.ID,
+				Service: c.Configuration.Labels[LabelService],
+				Status:  c.Status,
+				Image:   c.Configuration.Image.Reference,
+			})
+		}
+	}
+	return result, nil
+}
+
 func containerStatus(name string) (string, error) {
 	containers, err := listContainers()
 	if err != nil {

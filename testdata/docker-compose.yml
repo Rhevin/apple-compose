@@ -7,14 +7,12 @@ services:
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: app
       POSTGRES_USER: app
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+      # PGDATA points to a tmpfs-friendly location inside the container
+      PGDATA: /tmp/pgdata
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    volumes:
-      - redisdata:/data
     restart: unless-stopped
 
   web:
@@ -28,6 +26,5 @@ services:
       - redis
     restart: unless-stopped
 
-volumes:
-  pgdata:
-  redisdata:
+# Named volumes removed — Apple container virtiofs mounts don't support
+# chown/chmod from within containers. Use PGDATA=/tmp/pgdata for postgres.

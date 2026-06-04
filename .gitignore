@@ -28,3 +28,4 @@ coverage.html
 
 # Homebrew
 Formula/*.bottle.*
+apple-compose-test

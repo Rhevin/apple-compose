@@ -297,6 +297,54 @@ No daemon. No socket. Purely CLI invocations against Apple's native container ru
 | Tests | ✅ | ✅ |
 | Homebrew | ⏳ not yet | ✅ |
 
+## Performance
+
+Benchmarks run on Apple Silicon (M-series) comparing **apple-compose** (Apple Container runtime) vs **OrbStack**, using the same methodology as [repoflow.io/blog/apple-containers-vs-docker-desktop-vs-orbstack](https://www.repoflow.io/blog/apple-containers-vs-docker-desktop-vs-orbstack). Each test averaged over 20 runs on `alpine:3.20`.
+
+### Container startup time _(lower is better)_
+
+```
+OrbStack  ████░░░░░░░░░░░░░░░░  0.23s
+Apple     █████████████░░░░░░░  0.74s
+```
+
+### CPU — single-thread (sysbench events/s) _(higher is better)_
+
+```
+OrbStack  ████████████████████  11,318 ev/s
+Apple     ██████████████████░░  10,486 ev/s
+```
+
+### CPU — multi-thread (sysbench events/s) _(higher is better)_
+
+```
+OrbStack  ████████████████████  87,296 ev/s
+Apple     █████████░░░░░░░░░░░  39,970 ev/s
+```
+
+### Memory throughput (sysbench MiB/s) _(higher is better)_
+
+```
+OrbStack  ████████████████████  87,536 MiB/s
+Apple     ██████████████░░░░░░  62,979 MiB/s
+```
+
+### Disk sequential read — bind mount (fio MiB/s) _(higher is better)_
+
+```
+OrbStack  ████████████████████  6,400 MiB/s
+Apple     █████████████░░░░░░░  4,357 MiB/s
+```
+
+### Small file workflow — 1000 files _(lower is better)_
+
+```
+OrbStack  █████████░░░░░░░░░░░  0.98s
+Apple     ████████████████████  2.08s
+```
+
+> Run it yourself: `./benchmark/benchmark.sh` — requires OrbStack and Apple Container installed.
+
 ## Roadmap
 
 | Item | Blocked by |

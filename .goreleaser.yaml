@@ -35,8 +35,7 @@ checksum:
 changelog:
   sort: asc
   use: git
-  format: "{{.SHA}}: {{.Message}}"
-  abbrev: 7
+  format: "{{.Message}}"
   filters:
     exclude:
       - "^docs:"

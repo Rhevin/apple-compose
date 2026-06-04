@@ -24,7 +24,8 @@ var logsCmd = &cobra.Command{
 		}
 
 		if len(targets) == 1 {
-			return backend.Logs(backend.ContainerName(proj, targets[0]), follow)
+			cName := resolveContainerName(proj, targets[0])
+			return backend.Logs(cName, follow)
 		}
 
 		// Multiple services: fan out goroutines, prefix each line with service name
@@ -33,7 +34,8 @@ var logsCmd = &cobra.Command{
 			wg.Add(1)
 			go func(svc string) {
 				defer wg.Done()
-				streamLogs(backend.ContainerName(proj, svc), svc, follow)
+				cName := resolveContainerName(proj, svc)
+				streamLogs(cName, svc, follow)
 			}(name)
 		}
 		wg.Wait()

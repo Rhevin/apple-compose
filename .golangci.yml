@@ -1,0 +1,31 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck       # unchecked errors
+    - govet          # go vet checks
+    - staticcheck    # staticcheck SA rules
+    - unused         # unused code
+    - gosimple       # simplification suggestions
+    - ineffassign    # ineffectual assignments
+    - gofmt          # formatting
+    - goimports      # import ordering
+    - misspell       # spelling in comments/strings
+    - bodyclose      # HTTP response body not closed
+    - noctx          # HTTP requests without context
+    - prealloc       # slice preallocation hints
+
+linters-settings:
+  gofmt:
+    simplify: true
+  goimports:
+    local-prefixes: github.com/Rhevin/apple-compose
+
+issues:
+  exclude-rules:
+    # Test files: allow unused vars, unhandled errors
+    - path: _test\.go
+      linters:
+        - errcheck
+        - unused

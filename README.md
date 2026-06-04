@@ -200,6 +200,7 @@ These Docker Compose commands have no equivalent in the current Apple container 
 | **Anonymous volumes not cleaned up** | Apple container CLI does not auto-remove anonymous volumes even with `--rm` (unlike Docker). |
 | **No multi-file compose** | `-f file1.yml -f file2.yml` merge is not yet supported. |
 | **No `docker-compose.override.yml`** | Automatic override file merging is not implemented. |
+| **virtiofs mounts don't support `chown`/`chmod`** | Apple containers use virtiofs for volume mounts. Images that `chown` their data directory on startup (e.g. postgres, mysql) will fail with `Operation not permitted`. Workaround: set `PGDATA=/tmp/pgdata` (or equivalent) to keep data inside the container, or avoid named volumes for these services. |
 
 ## Networking and DNS
 

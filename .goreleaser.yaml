@@ -54,24 +54,6 @@ changelog:
     - title: "Other"
       order: 999
 
-brews:
-  - name: apple-compose
-    homepage: "https://github.com/Rhevin/apple-compose"
-    description: "Docker Compose orchestrator for Apple Containers — run docker-compose.yml on Apple Silicon without Docker Desktop or OrbStack"
-    license: "MIT"
-    repository:
-      owner: Rhevin
-      name: homebrew-apple-compose
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-    install: |
-      bin.install "apple-compose"
-    test: |
-      assert_match "Docker Compose-compatible", shell_output("#{bin}/apple-compose --help")
-
 release:
   github:
     owner: Rhevin

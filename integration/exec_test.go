@@ -13,19 +13,26 @@ func TestExec(t *testing.T) {
 	acMust(t, "pull", "db")
 	acMust(t, "up", "--wait", "120s")
 
-	// Wait for postgres to be ready — use pg_isready without flags
-	// (avoids cobra intercepting -U as its own flag)
+	// Wait for db container to be running
 	ok := waitFor(t, 2*time.Minute, func() bool {
-		_, _, err := ac(t, "exec", "db", "pg_isready")
-		return err == nil
+		out, _, _ := ac(t, "ps")
+		return contains(out, "db") && contains(out, "running")
 	})
 	if !ok {
-		t.Fatal("db did not become ready within 2 minutes")
+		out, _, _ := ac(t, "ps")
+		t.Fatalf("db did not reach running state within 2 minutes, ps:\n%s", out)
 	}
 
+	// Verify exec works with a simple command
 	out := acMust(t, "exec", "db", "echo", "hello-from-container")
 	if !contains(out, "hello-from-container") {
 		t.Errorf("expected echo output, got: %s", out)
+	}
+
+	// Verify exec passes flags through to container command correctly
+	out = acMust(t, "exec", "db", "sh", "-c", "echo exec-with-flags")
+	if !contains(out, "exec-with-flags") {
+		t.Errorf("expected exec-with-flags output, got: %s", out)
 	}
 }
 

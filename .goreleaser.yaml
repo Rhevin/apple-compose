@@ -22,7 +22,7 @@ builds:
 archives:
   - id: apple-compose
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
+    formats: [tar.gz]
     files:
       - LICENSE
       - README.md
@@ -54,13 +54,13 @@ changelog:
     - title: "Other"
       order: 999
 
-brews:
+homebrew:
   - name: apple-compose
     homepage: "https://github.com/Rhevin/apple-compose"
     description: "Docker Compose orchestrator for Apple Containers — run docker-compose.yml on Apple Silicon without Docker Desktop or OrbStack"
     license: "MIT"
     repository:
-      owner: rhevin
+      owner: Rhevin
       name: homebrew-apple-compose
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     commit_author:
@@ -74,7 +74,7 @@ brews:
 
 release:
   github:
-    owner: rhevin
+    owner: Rhevin
     name: apple-compose
   draft: false
   prerelease: auto

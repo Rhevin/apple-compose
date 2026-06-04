@@ -10,6 +10,8 @@ permissions:
 jobs:
   check-title:
     name: Conventional commit title
+    # Skip dependabot PRs — their titles follow a different convention
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: amannn/action-semantic-pull-request@v5

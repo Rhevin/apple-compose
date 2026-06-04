@@ -3,7 +3,7 @@
 [![CI](https://github.com/Rhevin/apple-compose/actions/workflows/ci.yml/badge.svg)](https://github.com/Rhevin/apple-compose/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Rhevin/apple-compose)](https://github.com/Rhevin/apple-compose/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/rhevin/apple-compose)](https://goreportcard.com/report/github.com/rhevin/apple-compose)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Rhevin/apple-compose)](https://goreportcard.com/report/github.com/Rhevin/apple-compose)
 [![Platform](https://img.shields.io/badge/platform-macOS%20arm64-lightgrey)](https://github.com/Rhevin/apple-compose#requirements)
 
 Docker Compose-compatible orchestrator for [Apple Containers](https://github.com/apple/container).

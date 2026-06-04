@@ -18,6 +18,7 @@ vet:
 
 fmt:
 	gofmt -w . cmd/ internal/ integration/
+	@which goimports > /dev/null && goimports -w cmd/ internal/ integration/ || true
 
 lint:
 	golangci-lint run --timeout=5m

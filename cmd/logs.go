@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/Rhevin/apple-compose/internal/backend"
+	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/spf13/cobra"
 )
 

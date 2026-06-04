@@ -1,4 +1,4 @@
-module github.com/Rhevin/apple-compose
+module github.com/rhevin/apple-compose
 
 go 1.26.4
 

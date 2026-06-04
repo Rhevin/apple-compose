@@ -1,6 +1,6 @@
 package main
 
-import "github.com/Rhevin/apple-compose/cmd"
+import "github.com/rhevin/apple-compose/cmd"
 
 var version = "dev"
 

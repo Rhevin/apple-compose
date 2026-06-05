@@ -5,3 +5,8 @@ services:
     image: alpine:3.20
     volumes:
       - ${BENCH_MOUNT:-/tmp}:/mnt
+    deploy:
+      resources:
+        limits:
+          cpus: "${BENCH_CPUS:-4}"
+          memory: "${BENCH_MEMORY:-4g}"

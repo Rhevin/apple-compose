@@ -1,6 +1,6 @@
 # apple-compose context
 
-Docker Compose CLI for Apple container. No daemon. arm64 only. v0.3.0.
+Docker Compose CLI for Apple container. No daemon. arm64 only. v0.4.0.
 
 ## Stack
 Go 1.22+, compose-go/v2, cobra. Shells out to `container` binary.
@@ -32,7 +32,9 @@ up, down, ps, logs, pull, exec, run, stop, start, restart, kill, rm, cp, top, st
 - DNS: IP works on macOS 26+, hostname resolution broken (vmnet has no DNS)
 - JSON schema: `status`, `configuration.id`, `configuration.labels` (map), `configuration.image.reference`
 - Commands needing only project name: use `resolveProjectName()` + `resolveTargets()` not `loadProject()`
-- `exec`/`run`: use `FParseErrWhitelist{UnknownFlags: true}`
+- `exec`/`run`: use `FParseErrWhitelist{UnknownFlags: true}` + `SetInterspersed(false)` so container flags (e.g. `--max-time`) aren't parsed by cobra
+- `run bench sh -c "..."`: works only for simple commands — `&&` in the shell string causes cobra to choke; use `--entrypoint sh` + `-c "..."` as workaround in scripts
+- Benchmark: Apple Container containers cannot `apk add` at runtime (no outbound network in containers). Use built-in tools (`dd`, `sha256sum`) only.
 
 ## Test sample
 `testdata/docker-compose.yml` — nginx + postgres (`PGDATA=/tmp/pgdata`) + redis

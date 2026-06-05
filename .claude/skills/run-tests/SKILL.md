@@ -37,7 +37,7 @@ make test-integration
 | `TestImages` | image list from compose file |
 | `TestPort` | port binding resolution |
 | `TestExec` | exec into running container |
-| `TestRun_OneOff` | one-off container run |
+| `TestRun_OneOff` | one-off container run (note: `run` uses `SetInterspersed(false)` — flags after service name pass through to container) |
 | `TestLifecycle` | full up → ps → logs → stop → start → restart → down |
 | `TestUp_DryRun` | dry-run output correctness |
 | `TestUp_NoDeps` | --no-deps flag |

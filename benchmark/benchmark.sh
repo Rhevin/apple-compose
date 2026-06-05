@@ -19,6 +19,8 @@ set -euo pipefail
 RUNS=${RUNS:-20}
 OUTPUT="${OUTPUT:-results.md}"
 SKIP_TESTS=""
+BENCH_CPUS=${BENCH_CPUS:-4}
+BENCH_MEMORY=${BENCH_MEMORY:-4g}
 
 APPLE_TMPDIR=""
 ORBSTACK_TMPDIR=""
@@ -36,9 +38,11 @@ BOLD='\033[1m' DIM='\033[2m' NC='\033[0m'
 # ── Arg parsing ───────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --runs)   RUNS="$2";   shift 2 ;;
+    --runs)   RUNS="$2";        shift 2 ;;
     --skip)   SKIP_TESTS="$SKIP_TESTS $2"; shift 2 ;;
-    --output) OUTPUT="$2"; shift 2 ;;
+    --output) OUTPUT="$2";      shift 2 ;;
+    --cpus)   BENCH_CPUS="$2";  shift 2 ;;
+    --memory) BENCH_MEMORY="$2"; shift 2 ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
   esac
 done
@@ -63,7 +67,10 @@ parse_time() {
 # ── Runtime wrappers ──────────────────────────────────────────────────────────
 # OrbStack: standard docker CLI with context switch
 orbstack_run() {
-  docker --context orbstack run --rm "$@"
+  docker --context orbstack run --rm \
+    --cpus "$BENCH_CPUS" \
+    --memory "$BENCH_MEMORY" \
+    "$@"
 }
 
 # Apple Container: apple-compose run (uses Apple Container runtime under the hood)
@@ -125,55 +132,56 @@ bench_startup() {
 }
 
 # ── 2. CPU ────────────────────────────────────────────────────────────────────
-SYSBENCH_CPU="apk add --quiet sysbench && sysbench cpu --max-time=60"
+# Uses dd + sha256sum (built-in, no apk install needed) to stress CPU.
+# Measures throughput of hashing 2 GiB of zeros — purely CPU-bound.
+CPU_CMD="dd if=/dev/zero bs=1M count=2048 2>/dev/null | sha256sum > /dev/null && \
+  dd if=/dev/zero bs=1M count=2048 2>&1 | grep -oE '[0-9.]+ [MG]B/s' | tail -1"
 
 bench_cpu() {
-  info "Test 2/5: CPU benchmark (${RUNS} runs each)"
-  local orb_single=() apple_single=() orb_multi=() apple_multi=()
-  local ncpu
-  ncpu=$(sysctl -n hw.logicalcpu 2>/dev/null || nproc)
+  info "Test 2/5: CPU benchmark — dd|sha256sum 2 GiB (${RUNS} runs each)"
+  local orb_vals=() apple_vals=()
 
   for ((i=1; i<=RUNS; i++)); do
     if $HAVE_ORBSTACK; then
-      v=$(orbstack_run alpine:3.20 sh -c "$SYSBENCH_CPU --threads=1 run" 2>/dev/null | grep "events per second" | awk '{print $NF}')
-      orb_single+=("${v:-0}")
-      v=$(orbstack_run alpine:3.20 sh -c "$SYSBENCH_CPU --threads=$ncpu run" 2>/dev/null | grep "events per second" | awk '{print $NF}')
-      orb_multi+=("${v:-0}")
+      t=$( { time orbstack_run alpine:3.20 sh -c \
+        "dd if=/dev/zero bs=1M count=2048 2>/dev/null | sha256sum > /dev/null"; } \
+        2>&1 | grep real | awk '{print $2}' | parse_time )
+      orb_vals+=("${t:-0}")
     fi
     if $HAVE_APPLE; then
-      v=$(apple_run sh -c "$SYSBENCH_CPU --threads=1 run" 2>/dev/null | grep "events per second" | awk '{print $NF}')
-      apple_single+=("${v:-0}")
-      v=$(apple_run sh -c "$SYSBENCH_CPU --threads=$ncpu run" 2>/dev/null | grep "events per second" | awk '{print $NF}')
-      apple_multi+=("${v:-0}")
+      t=$( { time apple_run sh -c \
+        "dd if=/dev/zero bs=1M count=2048 2>/dev/null | sha256sum > /dev/null"; } \
+        2>&1 | grep real | awk '{print $2}' | parse_time )
+      apple_vals+=("${t:-0}")
     fi
     printf "\r  run %d/%d" "$i" "$RUNS"
   done
   echo
 
-  CPU_ORB_SINGLE=$(average "${orb_single[*]:-0}")
-  CPU_ORB_MULTI=$(average "${orb_multi[*]:-0}")
-  CPU_APPLE_SINGLE=$(average "${apple_single[*]:-0}")
-  CPU_APPLE_MULTI=$(average "${apple_multi[*]:-0}")
-  ok "CPU single: OrbStack=${CPU_ORB_SINGLE} ev/s  Apple=${CPU_APPLE_SINGLE} ev/s"
-  ok "CPU multi:  OrbStack=${CPU_ORB_MULTI} ev/s  Apple=${CPU_APPLE_MULTI} ev/s"
+  CPU_ORB=$(average "${orb_vals[*]:-0}")
+  CPU_APPLE=$(average "${apple_vals[*]:-0}")
+  ok "CPU (sha256 2GiB): OrbStack=${CPU_ORB}s  Apple=${CPU_APPLE}s"
 }
 
 # ── 3. Memory ─────────────────────────────────────────────────────────────────
-SYSBENCH_MEM="apk add --quiet sysbench && sysbench memory --memory-block-size=1M --memory-total-size=4G"
+# Uses dd /dev/zero → /dev/null (built-in) to measure memory throughput.
+# Parses the dd speed output (e.g. "4.2 GB/s") and normalises to MiB/s.
 
 bench_memory() {
-  info "Test 3/5: Memory throughput (${RUNS} runs each)"
-  local ncpu
-  ncpu=$(sysctl -n hw.logicalcpu 2>/dev/null || nproc)
+  info "Test 3/5: Memory throughput — dd /dev/zero 4 GiB (${RUNS} runs each)"
   local orb_vals=() apple_vals=()
 
   for ((i=1; i<=RUNS; i++)); do
     if $HAVE_ORBSTACK; then
-      v=$(orbstack_run alpine:3.20 sh -c "$SYSBENCH_MEM --threads=$ncpu run" 2>/dev/null | grep "transferred" | grep -oE '[0-9]+\.[0-9]+ MiB/sec' | awk '{print $1}')
+      v=$(orbstack_run alpine:3.20 sh -c \
+        "dd if=/dev/zero of=/dev/null bs=1M count=4096 2>&1" \
+        2>/dev/null | grep -oE '[0-9.]+[MGT]B/s' | tail -1 | parse_dd_speed)
       orb_vals+=("${v:-0}")
     fi
     if $HAVE_APPLE; then
-      v=$(apple_run sh -c "$SYSBENCH_MEM --threads=$ncpu run" 2>/dev/null | grep "transferred" | grep -oE '[0-9]+\.[0-9]+ MiB/sec' | awk '{print $1}')
+      v=$(apple_run sh -c \
+        "dd if=/dev/zero of=/dev/null bs=1M count=4096 2>&1" \
+        2>/dev/null | grep -oE '[0-9.]+[MGT]B/s' | tail -1 | parse_dd_speed)
       apple_vals+=("${v:-0}")
     fi
     printf "\r  run %d/%d" "$i" "$RUNS"
@@ -186,36 +194,51 @@ bench_memory() {
 }
 
 # ── 4. Disk I/O ───────────────────────────────────────────────────────────────
-FIO_CMD="apk add --quiet fio && \
-  fio --name=seq-read --rw=read --bs=1M --size=1G --numjobs=1 \
-      --time_based=0 --filename=/mnt/testfile --ioengine=sync \
-      --output-format=terse 2>/dev/null"
+# Uses dd write + read on a bind-mounted tmpdir (built-in, no apk needed).
+# Reports MiB/s parsed from dd's stderr speed line.
+
+parse_dd_speed() {
+  # Reads a single speed token (e.g. "3.9GB/s") from stdin and prints MiB/s
+  awk '{
+    v = $0
+    if (v ~ /GB\/s/) { gsub(/GB\/s/, "", v); printf "%.2f", v*1024 }
+    else if (v ~ /MB\/s/) { gsub(/MB\/s/, "", v); printf "%.2f", v }
+    else if (v ~ /TB\/s/) { gsub(/TB\/s/, "", v); printf "%.2f", v*1024*1024 }
+    else print "0"
+  }'
+}
 
 bench_disk() {
-  info "Test 4/5: Disk I/O — fio seq-read on bind mount (${RUNS} runs each)"
-  local orb_vals=() apple_vals=()
+  info "Test 4/5: Disk I/O — dd write+read 256 MiB on bind mount (${RUNS} runs each)"
+  local orb_write=() apple_write=() orb_read=() apple_read=()
 
   ORBSTACK_TMPDIR=$(mktemp -d)
   APPLE_TMPDIR=$(mktemp -d)
 
+  local disk_cmd='dd if=/dev/zero of=/mnt/testfile bs=1M count=256 2>&1; dd if=/mnt/testfile of=/dev/null bs=1M 2>&1'
+
   for ((i=1; i<=RUNS; i++)); do
     if $HAVE_ORBSTACK; then
-      v=$(orbstack_run -v "${ORBSTACK_TMPDIR}:/mnt" alpine:3.20 sh -c "$FIO_CMD" 2>/dev/null | sed 's/\r/\n/g' | grep "^3;" | head -1 | cut -d';' -f7)
-      orb_vals+=("${v:-0}")
+      out=$(orbstack_run -v "${ORBSTACK_TMPDIR}:/mnt" alpine:3.20 sh -c "$disk_cmd" 2>/dev/null)
+      orb_write+=("$(echo "$out" | grep -oE '[0-9.]+[MGT]B/s' | sed -n '1p' | parse_dd_speed || echo 0)")
+      orb_read+=( "$(echo "$out" | grep -oE '[0-9.]+[MGT]B/s' | sed -n '2p' | parse_dd_speed || echo 0)")
     fi
     if $HAVE_APPLE; then
-      v=$(BENCH_MOUNT="$APPLE_TMPDIR" apple_run sh -c "$FIO_CMD" 2>/dev/null | sed 's/\x1b\[[0-9;?]*[mhlKHJ]//g' | sed 's/\r/\n/g' | grep "^3;" | head -1 | cut -d';' -f7)
-      apple_vals+=("${v:-0}")
+      out=$(BENCH_MOUNT="$APPLE_TMPDIR" apple_run sh -c "$disk_cmd" 2>/dev/null \
+            | sed 's/\x1b\[[0-9;?]*[mhlKHJ]//g' | sed 's/\r/\n/g')
+      apple_write+=("$(echo "$out" | grep -oE '[0-9.]+[MGT]B/s' | sed -n '1p' | parse_dd_speed || echo 0)")
+      apple_read+=( "$(echo "$out" | grep -oE '[0-9.]+[MGT]B/s' | sed -n '2p' | parse_dd_speed || echo 0)")
     fi
     printf "\r  run %d/%d" "$i" "$RUNS"
   done
   echo
 
-  DISK_ORB=$(average "${orb_vals[*]:-0}")
-  DISK_APPLE=$(average "${apple_vals[*]:-0}")
-  DISK_ORB_MIB=$(awk "BEGIN {printf \"%.2f\", $DISK_ORB/1024}")
-  DISK_APPLE_MIB=$(awk "BEGIN {printf \"%.2f\", $DISK_APPLE/1024}")
-  ok "Disk seq-read: OrbStack=${DISK_ORB_MIB} MiB/s  Apple=${DISK_APPLE_MIB} MiB/s"
+  DISK_ORB_WRITE=$(average "${orb_write[*]:-0}")
+  DISK_ORB_READ=$(average "${orb_read[*]:-0}")
+  DISK_APPLE_WRITE=$(average "${apple_write[*]:-0}")
+  DISK_APPLE_READ=$(average "${apple_read[*]:-0}")
+  ok "Disk write: OrbStack=${DISK_ORB_WRITE} MiB/s  Apple=${DISK_APPLE_WRITE} MiB/s"
+  ok "Disk read:  OrbStack=${DISK_ORB_READ} MiB/s   Apple=${DISK_APPLE_READ} MiB/s"
 }
 
 # ── 5. Small file workflow ────────────────────────────────────────────────────
@@ -273,12 +296,12 @@ print_results() {
   echo -e "${BOLD}$(sep)${NC}"
   printf "  %-36s %14s %14s %10s\n" "TEST" "ORBSTACK" "APPLE" "WINNER"
   sep
-  printf "  %-36s %14s %14s %10s\n" "Startup time (s, lower=better)"  "${STARTUP_ORB}s"      "${STARTUP_APPLE}s"      "$(winner "$STARTUP_ORB"    "$STARTUP_APPLE"    false)"
-  printf "  %-36s %14s %14s %10s\n" "CPU single-thread (ev/s)"        "$CPU_ORB_SINGLE"      "$CPU_APPLE_SINGLE"      "$(winner "$CPU_ORB_SINGLE" "$CPU_APPLE_SINGLE" true)"
-  printf "  %-36s %14s %14s %10s\n" "CPU multi-thread (ev/s)"         "$CPU_ORB_MULTI"       "$CPU_APPLE_MULTI"       "$(winner "$CPU_ORB_MULTI"  "$CPU_APPLE_MULTI"  true)"
-  printf "  %-36s %14s %14s %10s\n" "Memory throughput (MiB/s)"       "$MEM_ORB"             "$MEM_APPLE"             "$(winner "$MEM_ORB"        "$MEM_APPLE"        true)"
-  printf "  %-36s %14s %14s %10s\n" "Disk seq-read (MiB/s)"           "$DISK_ORB_MIB"        "$DISK_APPLE_MIB"        "$(winner "$DISK_ORB_MIB"   "$DISK_APPLE_MIB"   true)"
-  printf "  %-36s %14s %14s %10s\n" "Small files (s, lower=better)"   "${SMALLFILE_ORB}s"    "${SMALLFILE_APPLE}s"    "$(winner "$SMALLFILE_ORB"  "$SMALLFILE_APPLE"  false)"
+  printf "  %-36s %14s %14s %10s\n" "Startup time (s, lower=better)"    "${STARTUP_ORB}s"       "${STARTUP_APPLE}s"      "$(winner "$STARTUP_ORB"       "$STARTUP_APPLE"       false)"
+  printf "  %-36s %14s %14s %10s\n" "CPU sha256 2GiB (s, lower=better)" "${CPU_ORB}s"           "${CPU_APPLE}s"          "$(winner "$CPU_ORB"           "$CPU_APPLE"           false)"
+  printf "  %-36s %14s %14s %10s\n" "Memory throughput (MiB/s)"         "$MEM_ORB"              "$MEM_APPLE"             "$(winner "$MEM_ORB"           "$MEM_APPLE"           true)"
+  printf "  %-36s %14s %14s %10s\n" "Disk write (MiB/s)"                "$DISK_ORB_WRITE"       "$DISK_APPLE_WRITE"      "$(winner "$DISK_ORB_WRITE"    "$DISK_APPLE_WRITE"    true)"
+  printf "  %-36s %14s %14s %10s\n" "Disk read (MiB/s)"                 "$DISK_ORB_READ"        "$DISK_APPLE_READ"       "$(winner "$DISK_ORB_READ"     "$DISK_APPLE_READ"     true)"
+  printf "  %-36s %14s %14s %10s\n" "Small files (s, lower=better)"     "${SMALLFILE_ORB}s"     "${SMALLFILE_APPLE}s"    "$(winner "$SMALLFILE_ORB"     "$SMALLFILE_APPLE"     false)"
   sep
 
   cat > "$OUTPUT" <<MD
@@ -288,14 +311,15 @@ print_results() {
 **Image:** \`alpine:3.20\`
 **Date:** $(date +%Y-%m-%d)
 **Host:** $(uname -m) — $(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "unknown CPU")
+**Resource limits:** ${BENCH_CPUS} CPUs, ${BENCH_MEMORY} memory (identical for both runtimes)
 
 | Test | OrbStack | Apple Container | Winner |
 |------|----------|-----------------|--------|
 | Startup time (s, lower=better) | ${STARTUP_ORB} | ${STARTUP_APPLE} | $(winner "$STARTUP_ORB" "$STARTUP_APPLE" false) |
-| CPU single-thread (ev/s) | ${CPU_ORB_SINGLE} | ${CPU_APPLE_SINGLE} | $(winner "$CPU_ORB_SINGLE" "$CPU_APPLE_SINGLE" true) |
-| CPU multi-thread (ev/s) | ${CPU_ORB_MULTI} | ${CPU_APPLE_MULTI} | $(winner "$CPU_ORB_MULTI" "$CPU_APPLE_MULTI" true) |
+| CPU sha256 2GiB (s, lower=better) | ${CPU_ORB} | ${CPU_APPLE} | $(winner "$CPU_ORB" "$CPU_APPLE" false) |
 | Memory throughput (MiB/s) | ${MEM_ORB} | ${MEM_APPLE} | $(winner "$MEM_ORB" "$MEM_APPLE" true) |
-| Disk seq-read (MiB/s) | ${DISK_ORB_MIB} | ${DISK_APPLE_MIB} | $(winner "$DISK_ORB_MIB" "$DISK_APPLE_MIB" true) |
+| Disk write (MiB/s) | ${DISK_ORB_WRITE} | ${DISK_APPLE_WRITE} | $(winner "$DISK_ORB_WRITE" "$DISK_APPLE_WRITE" true) |
+| Disk read (MiB/s) | ${DISK_ORB_READ} | ${DISK_APPLE_READ} | $(winner "$DISK_ORB_READ" "$DISK_APPLE_READ" true) |
 | Small files workflow (s, lower=better) | ${SMALLFILE_ORB} | ${SMALLFILE_APPLE} | $(winner "$SMALLFILE_ORB" "$SMALLFILE_APPLE" false) |
 MD
   echo -e "\n  ${G}Results written to ${OUTPUT}${NC}"
@@ -311,15 +335,16 @@ trap cleanup EXIT
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
   echo -e "\n${BOLD}${C}  Container Runtime Benchmark${NC}"
-  echo -e "  ${DIM}OrbStack vs Apple Container — $RUNS runs per test${NC}\n"
+  echo -e "  ${DIM}OrbStack vs Apple Container — $RUNS runs per test${NC}"
+  echo -e "  ${DIM}Resource limits: ${BENCH_CPUS} CPUs, ${BENCH_MEMORY} memory (applied to both)${NC}\n"
 
   check_runtimes
   pull_images
 
   STARTUP_ORB=0;  STARTUP_APPLE=0
-  CPU_ORB_SINGLE=0; CPU_ORB_MULTI=0; CPU_APPLE_SINGLE=0; CPU_APPLE_MULTI=0
-  MEM_ORB=0;      MEM_APPLE=0
-  DISK_ORB=0;     DISK_ORB_MIB=0; DISK_APPLE=0; DISK_APPLE_MIB=0
+  CPU_ORB=0; CPU_APPLE=0
+  MEM_ORB=0; MEM_APPLE=0
+  DISK_ORB_WRITE=0; DISK_ORB_READ=0; DISK_APPLE_WRITE=0; DISK_APPLE_READ=0
   SMALLFILE_ORB=0; SMALLFILE_APPLE=0
 
   should_skip startup    || bench_startup

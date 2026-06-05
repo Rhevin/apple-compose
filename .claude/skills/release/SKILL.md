@@ -85,13 +85,12 @@ Watch the release workflow: `https://github.com/Rhevin/apple-compose/actions`
 
 ```sh
 git checkout master && git pull
-git log v0.2.0..HEAD --oneline
-# 3 fix commits → bump PATCH → v0.3.0
+git log v0.4.0..HEAD --oneline
+# 2 chore commits → bump PATCH → v0.4.1
 make test
-git tag -a v0.3.0 -m "v0.3.0
+git tag -a v0.4.1 -m "v0.4.1
 
-- Fix exec and run allow unknown flags to pass through
-- Fix Apple container JSON schema for ps, ls, wait-healthy
-- Fix top output format aligned with docker compose top"
-git push origin v0.3.0
+- chore: add govulncheck vulnerability scan to CI
+- chore: apply equal resource limits to OrbStack and Apple Container in benchmark"
+git push origin v0.4.1
 ```

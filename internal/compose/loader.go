@@ -16,25 +16,33 @@ type Options struct {
 	Profiles    []string
 }
 
-// Load parses a Compose file and returns the project.
-func Load(file string, opts ...Options) (*types.Project, error) {
+// Load parses one or more Compose files (merged left-to-right) and returns the project.
+func Load(files []string, opts ...Options) (*types.Project, error) {
 	var o Options
 	if len(opts) > 0 {
 		o = opts[0]
 	}
 
-	absFile, err := filepath.Abs(file)
-	if err != nil {
-		return nil, err
+	if len(files) == 0 {
+		files = []string{"docker-compose.yml"}
+	}
+
+	absFiles := make([]string, len(files))
+	for i, file := range files {
+		abs, err := filepath.Abs(file)
+		if err != nil {
+			return nil, err
+		}
+		absFiles[i] = abs
 	}
 
 	name := o.ProjectName
 	if name == "" {
-		name = projectName(absFile)
+		name = projectName(absFiles[0])
 	}
 
 	popts := []cli.ProjectOptionsFn{
-		cli.WithWorkingDirectory(filepath.Dir(absFile)),
+		cli.WithWorkingDirectory(filepath.Dir(absFiles[0])),
 		cli.WithName(name),
 		cli.WithDotEnv,
 		cli.WithOsEnv,
@@ -48,7 +56,7 @@ func Load(file string, opts ...Options) (*types.Project, error) {
 		popts = append(popts, cli.WithProfiles(o.Profiles))
 	}
 
-	projectOpts, err := cli.NewProjectOptions([]string{absFile}, popts...)
+	projectOpts, err := cli.NewProjectOptions(absFiles, popts...)
 	if err != nil {
 		return nil, err
 	}

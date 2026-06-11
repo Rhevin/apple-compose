@@ -38,7 +38,7 @@ func writeTempCompose(t *testing.T, content string) string {
 
 func TestLoad_ParsesServices(t *testing.T) {
 	path := writeTempCompose(t, sampleCompose)
-	project, err := Load(path)
+	project, err := Load([]string{path})
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestLoad_ParsesServices(t *testing.T) {
 
 func TestLoad_DependsOn(t *testing.T) {
 	path := writeTempCompose(t, sampleCompose)
-	project, err := Load(path)
+	project, err := Load([]string{path})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestLoad_DependsOn(t *testing.T) {
 
 func TestLoad_EnvVars(t *testing.T) {
 	path := writeTempCompose(t, sampleCompose)
-	project, err := Load(path)
+	project, err := Load([]string{path})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestLoad_EnvVars(t *testing.T) {
 
 func TestLoad_Ports(t *testing.T) {
 	path := writeTempCompose(t, sampleCompose)
-	project, err := Load(path)
+	project, err := Load([]string{path})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestLoad_Ports(t *testing.T) {
 
 func TestLoad_ProjectName(t *testing.T) {
 	path := writeTempCompose(t, sampleCompose)
-	project, err := Load(path)
+	project, err := Load([]string{path})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestLoad_ProjectName(t *testing.T) {
 func TestLoad_ProjectName_EnvOverride(t *testing.T) {
 	path := writeTempCompose(t, sampleCompose)
 	t.Setenv("COMPOSE_PROJECT_NAME", "myoverride")
-	project, err := Load(path)
+	project, err := Load([]string{path})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,8 +132,56 @@ func TestLoad_ProjectName_EnvOverride(t *testing.T) {
 	}
 }
 
+func TestLoad_MultipleFiles(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "compose.yml")
+	override := filepath.Join(dir, "compose.override.yml")
+	if err := os.WriteFile(base, []byte(`
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(override, []byte(`
+services:
+  web:
+    image: haproxy:latest
+    ports:
+      - "9090:80"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	project, err := Load([]string{base, override})
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	web, err := project.GetService("web")
+	if err != nil {
+		t.Fatal("service 'web' not found")
+	}
+	if web.Image != "haproxy:latest" {
+		t.Errorf("expected override image haproxy:latest, got %s", web.Image)
+	}
+	// compose-go merges list fields; the override port should be present.
+	found := false
+	for _, p := range web.Ports {
+		if p.Published == "9090" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected override port 9090 in %+v", web.Ports)
+	}
+}
+
 func TestLoad_MissingFile(t *testing.T) {
-	_, err := Load("/nonexistent/docker-compose.yml")
+	_, err := Load([]string{"/nonexistent/docker-compose.yml"})
 	if err == nil {
 		t.Fatal("expected error for missing file, got nil")
 	}
@@ -141,7 +189,7 @@ func TestLoad_MissingFile(t *testing.T) {
 
 func TestLoad_OrderMatchesDependencies(t *testing.T) {
 	path := writeTempCompose(t, sampleCompose)
-	project, err := Load(path)
+	project, err := Load([]string{path})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -27,12 +27,7 @@ var upCmd = &cobra.Command{
 			return fmt.Errorf("loading compose file: %w", err)
 		}
 
-		// Warn about build: keys before doing anything
-		for name, svc := range project.Services {
-			if svc.Build != nil {
-				fmt.Fprintf(os.Stderr, "WARNING: service %q has a 'build' key — skipped (v0.1 pull-only mode)\n", name)
-			}
-		}
+		backend.WarnUnsupportedKeys(os.Stderr, project)
 
 		order, err := topologicalOrder(project)
 		if err != nil {

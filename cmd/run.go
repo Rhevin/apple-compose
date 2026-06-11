@@ -30,6 +30,7 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("loading compose file: %w", err)
 		}
+		backend.WarnUnsupportedKeys(os.Stderr, project)
 
 		svcName := args[0]
 		svc, err := project.GetService(svcName)

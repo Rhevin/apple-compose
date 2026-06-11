@@ -3,12 +3,19 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 
+	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 )
 
-var configServices bool
+var (
+	configServices bool
+	configQuiet    bool
+	configFormat   string
+)
 
 var configCmd = &cobra.Command{
 	Use:   "config",
@@ -19,6 +26,12 @@ var configCmd = &cobra.Command{
 			return fmt.Errorf("loading compose file: %w", err)
 		}
 
+		backend.WarnUnsupportedKeys(os.Stderr, project)
+
+		if configQuiet {
+			return nil
+		}
+
 		if configServices {
 			for name := range project.Services {
 				fmt.Println(name)
@@ -26,24 +39,38 @@ var configCmd = &cobra.Command{
 			return nil
 		}
 
-		// Marshal project to JSON then back to YAML for clean output
-		b, err := json.Marshal(project)
-		if err != nil {
-			return err
+		switch configFormat {
+		case "", "yaml":
+			return printConfigYAML(os.Stdout, project)
+		case "json":
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(project)
+		default:
+			return fmt.Errorf("unknown format %q (supported: yaml, json)", configFormat)
 		}
-		var obj interface{}
-		if err := json.Unmarshal(b, &obj); err != nil {
-			return err
-		}
-		out, err := yaml.Marshal(obj)
-		if err != nil {
-			return err
-		}
-		fmt.Print(string(out))
-		return nil
 	},
+}
+
+func printConfigYAML(w io.Writer, project interface{}) error {
+	b, err := json.Marshal(project)
+	if err != nil {
+		return err
+	}
+	var obj interface{}
+	if err := json.Unmarshal(b, &obj); err != nil {
+		return err
+	}
+	out, err := yaml.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(out)
+	return err
 }
 
 func init() {
 	configCmd.Flags().BoolVar(&configServices, "services", false, "Print service names, one per line")
+	configCmd.Flags().BoolVarP(&configQuiet, "quiet", "q", false, "Only validate the configuration, don't print anything")
+	configCmd.Flags().StringVar(&configFormat, "format", "", "Output format (yaml or json)")
 }

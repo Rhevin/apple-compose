@@ -63,6 +63,7 @@ func init() {
 	rootCmd.PersistentFlags().StringArrayVar(&profiles, "profile", nil, "Enable service profiles")
 
 	rootCmd.AddCommand(
+		completionCmd,
 		upCmd, downCmd, psCmd, logsCmd,
 		pullCmd, execCmd, stopCmd, startCmd, restartCmd,
 		killCmd, rmCmd, runCmd,
@@ -71,4 +72,6 @@ func init() {
 		pauseCmd, unpauseCmd, eventsCmd, waitCmd, scaleCmd,
 		pruneCmd,
 	)
+
+	registerCompletions()
 }

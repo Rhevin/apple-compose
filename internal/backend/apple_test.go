@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -115,6 +116,55 @@ func TestContainerName(t *testing.T) {
 func TestNetworkName(t *testing.T) {
 	if got := NetworkName("myapp"); got != "myapp_default" {
 		t.Errorf("expected myapp_default, got %s", got)
+	}
+}
+
+func TestContainerStatusField_UnmarshalString(t *testing.T) {
+	var s containerStatusField
+	if err := json.Unmarshal([]byte(`"running"`), &s); err != nil {
+		t.Fatal(err)
+	}
+	if s.State != "running" {
+		t.Errorf("expected running, got %q", s.State)
+	}
+}
+
+func TestContainerStatusField_UnmarshalObject(t *testing.T) {
+	var s containerStatusField
+	if err := json.Unmarshal([]byte(`{"state":"stopped","networks":[]}`), &s); err != nil {
+		t.Fatal(err)
+	}
+	if s.State != "stopped" {
+		t.Errorf("expected stopped, got %q", s.State)
+	}
+}
+
+func TestAppleContainer_UnmarshalV1(t *testing.T) {
+	raw := `[{"id":"myapp-web","status":{"state":"running","networks":[]},"configuration":{"id":"myapp-web","image":{"reference":"nginx:alpine"},"labels":{"com.apple-compose.project":"myapp","com.apple-compose.service":"web"}}}]`
+	var containers []appleContainer
+	if err := json.Unmarshal([]byte(raw), &containers); err != nil {
+		t.Fatal(err)
+	}
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+	c := containers[0]
+	if c.Status.State != "running" {
+		t.Errorf("status: got %q", c.Status.State)
+	}
+	if c.Configuration.Labels[LabelProject] != "myapp" {
+		t.Errorf("project label: got %q", c.Configuration.Labels[LabelProject])
+	}
+}
+
+func TestAppleContainer_UnmarshalPreV1(t *testing.T) {
+	raw := `[{"status":"running","configuration":{"id":"myapp-web","image":{"reference":"nginx:alpine"},"labels":{"com.apple-compose.project":"myapp","com.apple-compose.service":"web"}}}]`
+	var containers []appleContainer
+	if err := json.Unmarshal([]byte(raw), &containers); err != nil {
+		t.Fatal(err)
+	}
+	if containers[0].Status.State != "running" {
+		t.Errorf("status: got %q", containers[0].Status.State)
 	}
 }
 

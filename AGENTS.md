@@ -1,6 +1,6 @@
 # AGENTS.md — apple-compose
 
-Docker Compose CLI for Apple container CLI. macOS 15+, arm64. No daemon. v0.3.0.
+Docker Compose CLI for Apple container CLI. macOS 26+, arm64. No daemon. v0.4.0. Requires container CLI 1.0.0+.
 
 ## Architecture
 ```
@@ -34,7 +34,7 @@ cmd/ → internal/compose → internal/backend/apple.go → container CLI
 - Named volumes + virtiofs → `chown` fails → `PGDATA=/tmp/pgdata` workaround
 - `up` idempotent: skip running, restart stopped, create new
 - DNS: IP works macOS 26+, hostname broken (vmnet no DNS, no `--hostname` flag)
-- JSON: `status` (lowercase), `configuration.id`, `configuration.labels` (map)
+- JSON (container 1.0.0+): `status.state`, `configuration.id`, `configuration.labels` (map); pre-1.0 used string `status`
 - Network create: suppress stderr, ignore already-exists
 
 ## Apple container CLI

@@ -79,6 +79,10 @@ var upCmd = &cobra.Command{
 			if err := backend.Up(project.Name, svc, upOpts); err != nil {
 				return fmt.Errorf("starting service %q: %w", name, err)
 			}
+
+			if err := waitForServiceReady(project.Name, name, svc); err != nil {
+				return err
+			}
 		}
 
 		if removeOrphans {
@@ -92,7 +96,7 @@ var upCmd = &cobra.Command{
 
 func init() {
 	upCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print commands without executing")
-	upCmd.Flags().DurationVar(&healthWait, "wait", 30*time.Second, "Max time to wait for each depends_on condition (0 to disable)")
+	upCmd.Flags().DurationVar(&healthWait, "wait", 30*time.Second, "Max time to wait for depends_on conditions and service health (0 to disable)")
 	upCmd.Flags().BoolVar(&noDeps, "no-deps", false, "Only start named services, skip dependencies")
 	upCmd.Flags().BoolVar(&forceRecreate, "force-recreate", false, "Recreate containers even if their configuration hasn't changed")
 	upCmd.Flags().BoolVar(&removeOrphans, "remove-orphans", false, "Remove containers for services not defined in the compose file")
@@ -112,6 +116,21 @@ func joinArgs(args []string) string {
 		}
 	}
 	return out
+}
+
+func waitForServiceReady(project, name string, svc types.ServiceConfig) error {
+	if healthWait <= 0 {
+		return nil
+	}
+	ready := "running"
+	if svc.HealthCheck != nil && !svc.HealthCheck.Disable && len(svc.HealthCheck.Test) > 0 {
+		ready = "healthy"
+	}
+	fmt.Printf("      waiting up to %s for %s (%s)...\n", healthWait, name, ready)
+	if err := backend.WaitHealthy(project, svc, healthWait); err != nil {
+		return fmt.Errorf("service %q: %w", name, err)
+	}
+	return nil
 }
 
 func waitForDependencies(project *types.Project, service string, svc types.ServiceConfig) error {

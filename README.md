@@ -41,7 +41,7 @@ apple-compose down
 | `-p, --project-name` | Override project name |
 | `--profile` | Enable service profiles |
 | `--dry-run` | Print commands without running (`up`) |
-| `--wait` | Wait for services to reach running state (`up`, default 30s) |
+| `--wait` | Wait for services to become healthy or running (`up`, default 30s) |
 | `--no-deps` | Skip dependency services (`up`) |
 
 Not implemented: `pause`, `unpause`, `events`, `wait`, `watch`, `scale`, `commit`, `push`.

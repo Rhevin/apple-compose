@@ -159,6 +159,9 @@ apple-compose down
 | `depends_on` | Startup dependency ordering |
 | `command` | Override container command |
 | `deploy.resources.limits` | CPU and memory limits |
+| `shm_size` | Shared memory size (`--shm-size`) |
+| `stop_signal` | Signal sent on `stop` / `down` / `restart` |
+| `stop_grace_period` | Seconds to wait before kill on stop |
 | `restart` | Parsed but ignored — see limitations |
 | `profiles` | Supported via `--profile` flag |
 
@@ -356,7 +359,7 @@ Apple     ████████████████████  2.21s
 | `healthcheck:` key | No native health check API in Apple container CLI |
 | `--scale` / multiple replicas | Not yet supported |
 | `pause` / `unpause` | Not supported by Apple container CLI |
-| Service-name DNS on macOS 15 | Requires userspace DNS resolver sidecar |
+| Service-name DNS | Hostname resolution within project networks is unreliable — use service IPs or published ports |
 
 ## Contributing
 

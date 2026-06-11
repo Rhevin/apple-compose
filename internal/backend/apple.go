@@ -43,6 +43,13 @@ func (s *containerStatusField) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type publishedPort struct {
+	ContainerPort int    `json:"containerPort"`
+	HostPort      int    `json:"hostPort"`
+	HostAddress   string `json:"hostAddress"`
+	Proto         string `json:"proto"`
+}
+
 // appleContainer matches the JSON shape of `container list --format json`.
 type appleContainer struct {
 	Status        containerStatusField `json:"status"`
@@ -51,8 +58,30 @@ type appleContainer struct {
 		Image struct {
 			Reference string `json:"reference"`
 		} `json:"image"`
-		Labels map[string]string `json:"labels"`
+		Labels         map[string]string `json:"labels"`
+		PublishedPorts []publishedPort   `json:"publishedPorts"`
 	} `json:"configuration"`
+}
+
+// StopOptions configures how a container is stopped (maps to container stop flags).
+type StopOptions struct {
+	Signal  string // e.g. SIGTERM
+	Timeout int    // seconds before SIGKILL; 0 uses container CLI default
+}
+
+// StopOptionsFromService maps compose stop_signal and stop_grace_period.
+func StopOptionsFromService(svc types.ServiceConfig) StopOptions {
+	opts := StopOptions{}
+	if svc.StopSignal != "" {
+		opts.Signal = svc.StopSignal
+	}
+	if svc.StopGracePeriod != nil {
+		secs := int(time.Duration(*svc.StopGracePeriod).Seconds())
+		if secs > 0 {
+			opts.Timeout = secs
+		}
+	}
+	return opts
 }
 
 // ContainerName returns the canonical name for a service container.
@@ -156,6 +185,9 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 	}
 	if svc.CPUS > 0 {
 		args = append(args, "--cpus", fmt.Sprintf("%.2f", svc.CPUS))
+	}
+	if svc.ShmSize > 0 {
+		args = append(args, "--shm-size", formatByteSize(int64(svc.ShmSize)))
 	}
 
 	if svc.Restart != "" && svc.Restart != "no" {
@@ -312,8 +344,8 @@ func containerStatus(name string) (containerStatusField, error) {
 }
 
 // Stop sends a stop signal to a container without removing it.
-func Stop(name string) error {
-	return run(bin, "stop", name)
+func Stop(name string, opts StopOptions) error {
+	return run(bin, stopArgs(name, opts)...)
 }
 
 // Start starts a previously stopped container.
@@ -322,9 +354,54 @@ func Start(name string) error {
 }
 
 // Down stops and removes a container.
-func Down(name string) error {
-	_ = run(bin, "stop", name)
+func Down(name string, opts StopOptions) error {
+	_ = run(bin, stopArgs(name, opts)...)
 	return run(bin, "delete", name)
+}
+
+func stopArgs(name string, opts StopOptions) []string {
+	args := []string{"stop"}
+	if opts.Signal != "" {
+		args = append(args, "--signal", opts.Signal)
+	}
+	if opts.Timeout > 0 {
+		args = append(args, "--time", fmt.Sprintf("%d", opts.Timeout))
+	}
+	args = append(args, name)
+	return args
+}
+
+// formatByteSize formats bytes for container CLI size flags (e.g. 64M, 1G).
+func formatByteSize(b int64) string {
+	switch {
+	case b%(1<<30) == 0 && b >= 1<<30:
+		return fmt.Sprintf("%dG", b/(1<<30))
+	case b%(1<<20) == 0 && b >= 1<<20:
+		return fmt.Sprintf("%dM", b/(1<<20))
+	case b%(1<<10) == 0 && b >= 1<<10:
+		return fmt.Sprintf("%dK", b/(1<<10))
+	default:
+		return fmt.Sprintf("%d", b)
+	}
+}
+
+func formatPublishedPorts(ports []publishedPort) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(ports))
+	for _, p := range ports {
+		host := p.HostAddress
+		if host == "" {
+			host = "0.0.0.0"
+		}
+		proto := p.Proto
+		if proto == "" {
+			proto = "tcp"
+		}
+		parts = append(parts, fmt.Sprintf("%s:%d->%d/%s", host, p.HostPort, p.ContainerPort, proto))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // PS lists containers belonging to the given project, formatted as a table.
@@ -347,12 +424,14 @@ func PS(project string) error {
 	}
 
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%-30s %-45s %-10s\n", "NAME", "IMAGE", "STATUS")
-	fmt.Fprintf(&buf, "%s\n", strings.Repeat("-", 87))
+	fmt.Fprintf(&buf, "%-28s %-10s %-35s %-10s %s\n", "NAME", "SERVICE", "IMAGE", "STATUS", "PORTS")
+	fmt.Fprintf(&buf, "%s\n", strings.Repeat("-", 110))
 	for _, c := range rows {
 		svc := c.Configuration.Labels[LabelService]
 		name := ContainerName(project, svc)
-		fmt.Fprintf(&buf, "%-30s %-45s %-10s\n", name, c.Configuration.Image.Reference, c.Status.State)
+		fmt.Fprintf(&buf, "%-28s %-10s %-35s %-10s %s\n",
+			name, svc, c.Configuration.Image.Reference, c.Status.State,
+			formatPublishedPorts(c.Configuration.PublishedPorts))
 	}
 	fmt.Print(buf.String())
 	return nil

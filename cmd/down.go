@@ -28,7 +28,9 @@ var downCmd = &cobra.Command{
 			name := order[i]
 			containerName := backend.ContainerName(project.Name, name)
 			fmt.Printf("  [-] %s\n", name)
-			if err := backend.Down(containerName); err != nil {
+			svc := project.Services[name]
+			opts := backend.StopOptionsFromService(svc)
+			if err := backend.Down(containerName, opts); err != nil {
 				fmt.Printf("      warning: %v\n", err)
 			}
 		}

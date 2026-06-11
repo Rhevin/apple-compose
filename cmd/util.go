@@ -26,6 +26,17 @@ func resolveContainerName(proj, nameOrService string) string {
 	return backend.ContainerName(proj, nameOrService)
 }
 
+func stopOptionsForService(project *types.Project, serviceName string) backend.StopOptions {
+	if project == nil {
+		return backend.StopOptions{}
+	}
+	svc, err := project.GetService(serviceName)
+	if err != nil {
+		return backend.StopOptions{}
+	}
+	return backend.StopOptionsFromService(svc)
+}
+
 // serviceNotFound returns a helpful error listing available service names.
 func serviceNotFound(name string, project *types.Project) error {
 	names := make([]string, 0, len(project.Services))

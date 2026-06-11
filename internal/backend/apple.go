@@ -257,10 +257,6 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		args = append(args, "--shm-size", formatByteSize(int64(svc.ShmSize)))
 	}
 
-	if svc.Restart != "" && svc.Restart != "no" {
-		fmt.Fprintf(os.Stderr, "  WARNING: service %q has restart: %q — not supported by Apple container CLI yet, ignored\n", svc.Name, svc.Restart)
-	}
-
 	args = append(args, svc.Image)
 
 	if len(svc.Command) > 0 {

@@ -256,16 +256,19 @@ func TestFormatPublishedPorts(t *testing.T) {
 	}
 }
 
-func TestRunArgs_RestartWarning(t *testing.T) {
+func TestRunArgs_RestartIgnored(t *testing.T) {
 	svc := types.ServiceConfig{
 		Name:    "web",
 		Image:   "nginx:alpine",
 		Restart: "always",
 	}
-	// Should not error — just warn to stderr
 	_, err := RunArgs("myapp", svc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	keys := UnsupportedServiceKeys(svc)
+	if !containsKey(keys, "restart") {
+		t.Fatalf("expected restart in unsupported keys, got %v", keys)
 	}
 }
 

@@ -6,401 +6,83 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Rhevin/apple-compose)](https://goreportcard.com/report/github.com/Rhevin/apple-compose)
 [![Platform](https://img.shields.io/badge/platform-macOS%20arm64-lightgrey)](https://github.com/Rhevin/apple-compose#requirements)
 
-Docker Compose-compatible orchestrator for [Apple Containers](https://github.com/apple/container).
-
-Run your `docker-compose.yml` on Apple Silicon without Docker Desktop or OrbStack — no daemon, no VM overhead beyond Apple's own container runtime.
-
-```
-apple-compose up
-apple-compose ps
-apple-compose logs web --follow
-apple-compose down
-```
+Docker Compose-compatible CLI for [Apple Containers](https://github.com/apple/container). Run `docker-compose.yml` on Apple Silicon — no daemon, no Docker Desktop.
 
 ## Requirements
 
-- macOS 26 (Tahoe) or later
-- Apple Silicon (arm64)
-- [Apple container CLI](https://github.com/apple/container) 1.0.0 or later, installed and running
+- macOS 26+ (Tahoe), Apple Silicon (arm64)
+- [Apple container CLI](https://github.com/apple/container) 1.0.0+, running (`container system start`)
 
 ## Install
-
-### curl (quickest)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Rhevin/apple-compose/main/install.sh | sh
 ```
 
-Pin a specific version:
-
-```sh
-VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/Rhevin/apple-compose/main/install.sh | sh
-```
-
-### Build from source
-
-```sh
-git clone https://github.com/Rhevin/apple-compose
-cd apple-compose
-make build
-sudo mv apple-compose /usr/local/bin/
-```
-
-### Manual download
-
-Download the latest release from [GitHub Releases](https://github.com/Rhevin/apple-compose/releases/latest), then:
-
-```sh
-tar -xzf apple-compose_*_darwin_arm64.tar.gz
-sudo mv apple-compose /usr/local/bin/
-```
+Or [download a release](https://github.com/Rhevin/apple-compose/releases/latest), or `make build` from source.
 
 ## Quick start
 
 ```sh
-# 1. Start Apple's container system (one-time setup)
-container system start
-
-# 2. Run your compose project
+container system start          # one-time
 apple-compose up
-
-# 3. Check running services
 apple-compose ps
-
-# 4. Tail logs from a service
 apple-compose logs web --follow
-
-# 5. Tear everything down
 apple-compose down
 ```
 
 ## Commands
 
-| Command | Description |
-|---|---|
-| `up` | Create and start all services |
-| `down` | Stop and remove containers + network |
-| `ps` | List containers for this project |
-| `logs <service>` | Fetch logs from a service |
-| `pull [service...]` | Pull service images without starting |
-| `exec <service> <cmd>` | Execute a command in a running container |
-| `run <service> [cmd]` | Run a one-off command on a service |
-| `stop [service...]` | Stop containers without removing |
-| `start [service...]` | Start stopped containers |
-| `restart [service...]` | Restart service containers |
-| `kill [service...]` | Force-stop containers with a signal |
-| `rm [service...]` | Remove stopped containers |
-| `cp <service:path> <local>` | Copy files between container and host |
-| `top [service...]` | Show running processes inside containers |
-| `stats [service...]` | Live resource usage (CPU, memory, I/O) |
-| `images [service...]` | List images used by the project |
-| `port <service> <port>` | Print the public port for a binding |
-| `config` | Print resolved compose file |
-| `ls` | List all apple-compose projects on this machine |
-| `prune` | Remove stopped containers, unused images, networks, volumes |
-| `login [registry]` | Log in to a container registry |
-| `logout <registry>` | Log out from a container registry |
-
-### Global flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `-f, --file` | `docker-compose.yml` | Compose file path |
-| `-p, --project-name` | directory name | Override project name |
-| `--env-file` | | Path to an explicit env file |
-| `--profile` | | Enable service profiles (repeatable) |
-
-### `up` flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `--dry-run` | false | Print commands without executing |
-| `--wait` | 30s | Time to wait for each service to reach running state (`0` to disable) |
-
-### `up` additional flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `--no-deps` | false | Start only named services, skip dependencies |
-
-### `prune` flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `--force` | false | Skip confirmation prompt |
-| `-a, --all` | false | Remove all unused images (also implies `--networks`) |
-| `--images` | false | Remove dangling images only |
-| `--networks` | false | Remove unused networks |
-| `--volumes` | false | Remove named volume data for this project |
-
-> **Docker Compose equivalent:** `docker system prune -f -a` →  `apple-compose prune --force -a --volumes`
-> Note: Docker Compose uses `-f` as shorthand for `--force` on prune. In apple-compose, `-f` is already taken by `--file` (global flag), so `--force` has no shorthand.
-
-### `run` / `exec` flags
+`up` · `down` · `ps` · `logs` · `pull` · `exec` · `run` · `stop` · `start` · `restart` · `kill` · `rm` · `cp` · `top` · `stats` · `images` · `port` · `config` · `ls` · `prune` · `login` · `logout`
 
 | Flag | Description |
 |---|---|
-| `-t, --tty` | Allocate a TTY |
-| `-i, --interactive` | Keep STDIN open |
-| `--rm` | Remove container after run (default: true for `run`) |
-| `-e, --env` | Set additional env vars |
-| `--entrypoint` | Override the entrypoint (`run` only) |
+| `-f, --file` | Compose file (default: `docker-compose.yml`) |
+| `-p, --project-name` | Override project name |
+| `--profile` | Enable service profiles |
+| `--dry-run` | Print commands without running (`up`) |
+| `--wait` | Wait for services to reach running state (`up`, default 30s) |
+| `--no-deps` | Skip dependency services (`up`) |
+
+Not implemented: `pause`, `unpause`, `events`, `wait`, `watch`, `scale`, `commit`, `push`.
 
 ## Compose file support
 
-### Supported keys
+**Supported:** `image`, `ports`, `environment`, `volumes`, `depends_on`, `command`, `deploy.resources.limits`, `shm_size`, `stop_signal`, `stop_grace_period`, `profiles`
 
-| Key | Notes |
-|---|---|
-| `image` | Pull-only — pre-built images only |
-| `ports` | Host:container port mapping |
-| `environment` | Env vars; `.env` file auto-loaded |
-| `volumes` | Bind mounts and named volumes |
-| `depends_on` | Startup dependency ordering |
-| `command` | Override container command |
-| `deploy.resources.limits` | CPU and memory limits |
-| `shm_size` | Shared memory size (`--shm-size`) |
-| `stop_signal` | Signal sent on `stop` / `down` / `restart` |
-| `stop_grace_period` | Seconds to wait before kill on stop |
-| `restart` | Parsed but ignored — see limitations |
-| `profiles` | Supported via `--profile` flag |
-
-### Unsupported keys (with behaviour)
-
-| Key | Behaviour |
-|---|---|
-| `build` | **Warning printed, service skipped.** Apple's container builder currently lacks outbound network access — pre-build your images and reference them via `image:` instead. |
-| `healthcheck` | Ignored. `--wait` polls for `running` status as a substitute. |
-| `restart` | Warning printed, flag dropped. Apple container CLI does not yet expose a `--restart` flag. |
-| `secrets` / `configs` | Not implemented. |
-| `extends` | Not implemented. |
+**Ignored / skipped:** `build` (warn + skip — pull pre-built images instead), `healthcheck` (use `--wait`), `restart` (no `--restart` in Apple CLI), `secrets`, `configs`, `extends`
 
 ## Limitations
 
-### Commands not available
+- **Pull-only** — no `build:` support; pre-build with `docker build` or `container build`
+- **No restart policy** — services won't auto-restart on crash
+- **Named volumes** persist at `~/.apple-compose/volumes/<project>/` after `down`
+- **virtiofs** — `chown`/`chmod` on mounts fails; workaround: `PGDATA=/tmp/pgdata` for postgres
+- **DNS** — hostname resolution within project networks is unreliable; use IPs or published ports
+- **No multi-file compose** or automatic `docker-compose.override.yml` merging
 
-These Docker Compose commands have no equivalent in the current Apple container CLI and are not implemented:
+### Networking
 
-| Command | Reason |
-|---|---|
-| `pause` / `unpause` | Apple container CLI has no pause/unpause support |
-| `events` | No real-time event stream in Apple container CLI |
-| `wait` | No `container wait` command |
-| `watch` | No file-watch/rebuild loop — no build support in v0.1 |
-| `scale` | Multiple replicas not yet supported |
-| `commit` | No `container commit` command |
-| `push` | No `container image push` command |
+Creates a per-project network (`<project>_default`). On macOS 26+, containers attach to it and can reach each other by service name when DNS works. Otherwise publish ports and use `localhost`.
 
-### Platform limitations
+### Named volumes
 
-| Limitation | Detail |
-|---|---|
-| **macOS 26+ required** | Apple container CLI 1.0.0 requires macOS 26 (Tahoe). Service-name DNS within project networks works on macOS 26+. |
-| **Apple Silicon only** | Apple's container runtime is arm64-only. No x86 support. |
-| **No restart policy** | `restart: always` / `on-failure` / `unless-stopped` are silently unsupported by the Apple container CLI — a warning is printed. Services will not auto-restart on crash. |
-| **No build support** | `build:` keys are detected and skipped with a warning. Pre-build images with `docker build` or `container build` and push to a registry. |
-| **Named volumes not cleaned up by `down`** | Named volumes persist at `~/.apple-compose/volumes/<project>/` after `down`. Run `rm -rf ~/.apple-compose/volumes/<project>/` to clean up manually. |
-| **Anonymous volumes not cleaned up** | Apple container CLI does not auto-remove anonymous volumes even with `--rm` (unlike Docker). |
-| **No multi-file compose** | `-f file1.yml -f file2.yml` merge is not yet supported. |
-| **No `docker-compose.override.yml`** | Automatic override file merging is not implemented. |
-| **virtiofs mounts don't support `chown`/`chmod`** | Apple containers use virtiofs for volume mounts. Images that `chown` their data directory on startup (e.g. postgres, mysql) will fail with `Operation not permitted`. Workaround: set `PGDATA=/tmp/pgdata` (or equivalent) to keep data inside the container, or avoid named volumes for these services. |
+Host path: `~/.apple-compose/volumes/<project>/<volume>/`. Clean up with `rm -rf ~/.apple-compose/volumes/<project>/`.
 
-## Networking and DNS
-
-On **macOS 26 (Tahoe)+**, `apple-compose` creates a shared project network and attaches all containers to it. Services can reach each other by name:
-
-```yaml
-services:
-  web:
-    image: nginx:alpine
-    environment:
-      DB_HOST: db        # resolves via DNS within the project network
-  db:
-    image: postgres:16-alpine
-```
-
-On older macOS versions (pre-26) or pre-1.0 container CLI releases, network commands may not be available. Containers can start but service-name DNS does not work. Use published ports as a workaround:
-
-```yaml
-services:
-  web:
-    image: myapp:latest
-    environment:
-      DB_HOST: localhost
-      DB_PORT: 5432       # map to the host-published port
-  db:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"       # publish so web can reach it via localhost
-```
-
-## Named volumes
-
-Named volumes are stored on the host under:
-
-```
-~/.apple-compose/volumes/<project>/<volume-name>/
-```
+### Registry auth
 
 ```sh
-# Inspect
-ls ~/.apple-compose/volumes/myapp/pgdata/
-
-# Clean up after down
-rm -rf ~/.apple-compose/volumes/myapp/
-```
-
-## Registry authentication
-
-```sh
-# Interactive login
 apple-compose login registry.example.com
-
-# CI / non-interactive (password from stdin)
-echo $TOKEN | apple-compose login ghcr.io -u myuser --password-stdin
-
-# Log out
 apple-compose logout ghcr.io
 ```
 
-Credentials are stored by Apple's container CLI and reused automatically on `pull` and `up`.
+## Benchmarks
 
-## Architecture
-
-```
-apple-compose CLI
-    ↓
-compose-go (parse docker-compose.yml — same library Docker uses)
-    ↓
-backend/apple.go (builds container CLI arguments)
-    ↓
-Apple container CLI (exec.Command)
-```
-
-No daemon. No socket. Purely CLI invocations against Apple's native container runtime.
-
-## Comparison
-
-| Feature | apple-compose | Container-Compose |
-|---|---|---|
-| Language | Go | Swift |
-| Compose parser | compose-go (official spec) | Hand-rolled YAML structs |
-| `ps` | ✅ | ❌ |
-| `logs` | ✅ | ❌ |
-| `pull` | ✅ | ❌ |
-| `exec` / `run` | ✅ | ❌ |
-| `stop` / `start` / `restart` | ✅ | ❌ |
-| `kill` / `rm` | ✅ | ❌ |
-| `cp` / `top` / `stats` | ✅ | ❌ |
-| `config` / `ls` / `images` | ✅ | ❌ |
-| Registry login/logout | ✅ | ❌ |
-| Named volumes | ✅ | ❌ |
-| Project networking | ✅ (macOS 26+) | ✅ |
-| Global `--project-name` / `--profile` | ✅ | ❌ |
-| Tests | ✅ | ✅ |
-| Homebrew | ⏳ not yet | ✅ |
-
-## Performance
-
-Benchmarks run on Apple Silicon (M-series) comparing **apple-compose** (Apple Container runtime) vs **OrbStack**. Both runtimes capped at **4 CPUs / 4 GiB memory** for a fair comparison. Each test averaged over 3 runs on `alpine:3.20`. All tools (`dd`, `sha256sum`) are built into the image — no network access required.
-
-### Container startup time _(lower is better)_
-
-```
-OrbStack  ████░░░░░░░░░░░░░░░░  0.23s
-Apple     █████████████░░░░░░░  0.80s
-```
-
-### CPU — sha256sum 2 GiB _(lower is better)_
-
-```
-OrbStack  ████████████████████  5.87s
-Apple     ██████████████████░░  6.45s
-```
-
-### Memory throughput — dd 4 GiB _(higher is better)_
-
-```
-OrbStack  ███████████████████░  28,535 MiB/s
-Apple     ████████████████████  30,447 MiB/s
-```
-
-### Disk write — dd 256 MiB bind mount _(higher is better)_
-
-```
-OrbStack  ████████████████████  3,857 MiB/s
-Apple     █████████░░░░░░░░░░░  1,707 MiB/s
-```
-
-### Disk read — dd 256 MiB bind mount _(higher is better)_
-
-```
-OrbStack  ████████████████████  5,871 MiB/s
-Apple     ████████████░░░░░░░░  3,584 MiB/s
-```
-
-### Small file workflow — 1000 files _(lower is better)_
-
-```
-OrbStack  █████████░░░░░░░░░░░  0.96s
-Apple     ████████████████████  2.21s
-```
-
-> Run it yourself: `./benchmark/benchmark.sh` — requires OrbStack and Apple Container installed.
-> Override limits: `./benchmark/benchmark.sh --cpus 2 --memory 2g`
-
-## Roadmap
-
-| Item | Blocked by |
-|---|---|
-| Homebrew tap | Need stable release + tap repo setup |
-| `restart` policy | Apple container CLI `--restart` flag not yet available |
-| `build:` key support | Apple container builder lacks outbound network access |
-| `healthcheck:` key | No native health check API in Apple container CLI |
-| `--scale` / multiple replicas | Not yet supported |
-| `pause` / `unpause` | Not supported by Apple container CLI |
-| Service-name DNS | Hostname resolution within project networks is unreliable — use service IPs or published ports |
+Apple Container vs OrbStack on M-series — see [benchmark/README.md](benchmark/README.md). Run locally: `./benchmark/benchmark.sh`.
 
 ## Contributing
 
-```sh
-# Build
-make build
-
-# Unit tests (no container CLI required)
-make test
-
-# Lint
-make lint
-
-# Coverage report
-make coverage-html
-
-# Dry-run against the sample compose file
-./apple-compose -f testdata/docker-compose.yml up --dry-run
-
-# Test a goreleaser config change locally
-make release-dry
-```
-
-### Integration tests
-
-Integration tests run real containers and require `container system start` first.
-
-```sh
-# Run all integration tests (timeout 20 min)
-make test-integration
-
-# Run a specific test
-go test -tags integration -v -timeout 20m ./integration/ -run TestLifecycle
-
-# Run without make
-go test -tags integration -v -timeout 10m ./integration/
-```
-
-Tests skip automatically if the `container` CLI is not available or you are not on Apple Silicon.
-
-PRs welcome. Please add tests for new behaviour.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Quick checks: `make fmt && make test && make lint`.
 
 ## License
 

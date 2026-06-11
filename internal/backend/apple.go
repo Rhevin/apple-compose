@@ -149,6 +149,7 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		"--name", name,
 		"--label", fmt.Sprintf("%s=%s", LabelProject, project),
 		"--label", fmt.Sprintf("%s=%s", LabelService, svc.Name),
+		"--label", fmt.Sprintf("%s=%s", LabelConfigHash, serviceConfigHash(svc)),
 		"--network", network,
 		"--dns-search", network,
 	}
@@ -274,15 +275,32 @@ func namedVolumePath(project, volume string) string {
 	return filepath.Join(home, ".apple-compose", "volumes", project, volume)
 }
 
+// UpOptions configures how Up handles existing containers.
+type UpOptions struct {
+	ForceRecreate bool
+}
+
 // Up starts a container for the given service (detached).
-// If the container already exists and is running, it is skipped.
-// If it exists but is stopped, it is started without recreating.
-func Up(project string, svc types.ServiceConfig) error {
+// If the container already exists and is running, it is skipped unless config
+// changed or ForceRecreate is set.
+// If it exists but is stopped, it is started without recreating unless recreate is needed.
+func Up(project string, svc types.ServiceConfig, opts UpOptions) error {
 	name := ContainerName(project, svc.Name)
 
-	status, err := containerStatus(name)
+	c, err := findContainer(name)
 	if err == nil {
-		switch status.State {
+		if opts.ForceRecreate || configChanged(c, svc) {
+			reason := "config changed"
+			if opts.ForceRecreate {
+				reason = "force-recreate"
+			}
+			fmt.Printf("  [~] %s (recreating: %s)\n", svc.Name, reason)
+			if err := Down(name, StopOptionsFromService(svc)); err != nil {
+				return err
+			}
+			return createContainer(project, svc)
+		}
+		switch c.Status.State {
 		case "running":
 			fmt.Printf("  [=] %s (already running)\n", svc.Name)
 			return nil
@@ -292,7 +310,10 @@ func Up(project string, svc types.ServiceConfig) error {
 		}
 	}
 
-	// Container doesn't exist — create and start it
+	return createContainer(project, svc)
+}
+
+func createContainer(project string, svc types.ServiceConfig) error {
 	args, err := RunArgs(project, svc)
 	if err != nil {
 		return err
@@ -302,6 +323,40 @@ func Up(project string, svc types.ServiceConfig) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// RemoveOrphans deletes containers belonging to the project whose service is
+// no longer defined in the compose file.
+func RemoveOrphans(project string, services map[string]types.ServiceConfig) error {
+	containers, err := ListContainersForProject(project)
+	if err != nil {
+		return err
+	}
+	for _, c := range containers {
+		if _, ok := services[c.Service]; ok {
+			continue
+		}
+		fmt.Printf("  [-] %s (orphan)\n", c.Service)
+		if err := Down(c.Name, StopOptions{}); err != nil {
+			fmt.Printf("      warning: %v\n", err)
+		}
+	}
+	return nil
+}
+
+// RemoveNamedVolumes deletes on-disk data for named volumes in a project.
+func RemoveNamedVolumes(project string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	volDir := filepath.Join(home, ".apple-compose", "volumes", project)
+	if _, err := os.Stat(volDir); os.IsNotExist(err) {
+		fmt.Printf("  no volumes found for project %q\n", project)
+		return nil
+	}
+	fmt.Printf("  removing %s\n", volDir)
+	return os.RemoveAll(volDir)
 }
 
 // WaitHealthy polls until a container status is "running" or timeout elapses.
@@ -387,17 +442,25 @@ func ListContainersForProject(project string) ([]ContainerInfo, error) {
 	return result, nil
 }
 
-func containerStatus(name string) (containerStatusField, error) {
+func findContainer(name string) (appleContainer, error) {
 	containers, err := listContainers()
 	if err != nil {
-		return containerStatusField{}, err
+		return appleContainer{}, err
 	}
 	for _, c := range containers {
 		if c.Configuration.ID == name {
-			return c.Status, nil
+			return c, nil
 		}
 	}
-	return containerStatusField{}, fmt.Errorf("container %q not found", name)
+	return appleContainer{}, fmt.Errorf("container %q not found", name)
+}
+
+func containerStatus(name string) (containerStatusField, error) {
+	c, err := findContainer(name)
+	if err != nil {
+		return containerStatusField{}, err
+	}
+	return c.Status, nil
 }
 
 // Stop sends a stop signal to a container without removing it.

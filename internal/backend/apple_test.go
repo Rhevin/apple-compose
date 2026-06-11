@@ -78,6 +78,7 @@ func TestRunArgs_Labels(t *testing.T) {
 	}
 	assertContains(t, args, "--label", "com.apple-compose.project=proj")
 	assertContains(t, args, "--label", "com.apple-compose.service=web")
+	assertContains(t, args, "--label", "com.apple-compose.config-hash="+serviceConfigHash(svc))
 }
 
 func TestRunArgs_BindMount(t *testing.T) {

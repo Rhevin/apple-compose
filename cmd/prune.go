@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
+	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/spf13/cobra"
 )
 
@@ -82,7 +82,7 @@ images and networks. Use --volumes to delete named volume data for this project.
 		if pruneVolumes {
 			proj := resolveProjectName()
 			fmt.Printf("Removing named volumes for project %q...\n", proj)
-			if err := removeNamedVolumes(proj); err != nil {
+			if err := backend.RemoveNamedVolumes(proj); err != nil {
 				fmt.Fprintf(os.Stderr, "  warning: %v\n", err)
 			}
 		}
@@ -99,20 +99,6 @@ func runPruneCmd(name string, args ...string) {
 	if err := c.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "  warning: %v\n", err)
 	}
-}
-
-func removeNamedVolumes(project string) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	volDir := filepath.Join(home, ".apple-compose", "volumes", project)
-	if _, err := os.Stat(volDir); os.IsNotExist(err) {
-		fmt.Printf("  no volumes found for project %q\n", project)
-		return nil
-	}
-	fmt.Printf("  removing %s\n", volDir)
-	return os.RemoveAll(volDir)
 }
 
 func init() {

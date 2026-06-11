@@ -33,41 +33,52 @@ apple-compose down
 
 ## Commands
 
-`up` · `down` · `ps` · `logs` · `pull` · `exec` · `run` · `stop` · `start` · `restart` · `kill` · `rm` · `cp` · `top` · `stats` · `images` · `port` · `config` · `ls` · `prune` · `login` · `logout`
+`up` · `down` · `ps` · `logs` · `pull` · `exec` · `run` · `stop` · `start` · `restart` · `kill` · `rm` · `cp` · `top` · `stats` · `images` · `port` · `config` · `ls` · `prune` · `login` · `logout` · `completion`
 
 | Flag | Description |
 |---|---|
-| `-f, --file` | Compose file (default: `docker-compose.yml`) |
+| `-f, --file` | Compose file(s), merge left-to-right (repeatable) |
 | `-p, --project-name` | Override project name |
 | `--profile` | Enable service profiles |
 | `--dry-run` | Print commands without running (`up`) |
-| `--wait` | Wait for services to become healthy or running (`up`, default 30s) |
+| `--wait` | Wait for `depends_on` conditions and health (`up`, default 30s) |
 | `--no-deps` | Skip dependency services (`up`) |
+| `--force-recreate` | Recreate containers even if unchanged (`up`) |
+| `--remove-orphans` | Remove containers for services no longer in the compose file (`up`) |
+| `-d, --detach` | Accepted for script compatibility (`up`, always detached) |
+| `-v, --volumes` | Remove named volume data for this project (`down`) |
+
+`config` also supports `--services`, `--quiet`, and `--format json`.
 
 Not implemented: `pause`, `unpause`, `events`, `wait`, `watch`, `scale`, `commit`, `push`.
 
 ## Compose file support
 
-**Supported:** `image`, `ports`, `environment`, `volumes`, `depends_on` (with `condition: service_started` / `service_healthy`), `healthcheck` (polled via `container exec` for `service_healthy`), `command`, `deploy.resources.limits`, `shm_size`, `stop_signal`, `stop_grace_period`, `profiles`
+**Supported:** `image`, `ports`, `environment`, `env_file`, `volumes`, `depends_on` (`service_started`, `service_healthy`, `service_completed_successfully`), `healthcheck`, `command`, `entrypoint`, `user`, `working_dir`, `cap_add`, `cap_drop`, `tmpfs`, `read_only`, `ulimits`, `init`, `extra_hosts`, `deploy.resources.limits`, `shm_size`, `stop_signal`, `stop_grace_period`, `profiles`
 
-**Ignored / skipped:** `build` (warn + skip — pull pre-built images instead), `restart` (no `--restart` in Apple CLI), `secrets`, `configs`, `extends`
+**Warned + skipped:** `build` (pull pre-built images instead), `restart` (no `--restart` in Apple CLI)
+
+**Not implemented:** `secrets`, `configs`, `extends`, custom `networks:`
+
+Unsupported keys in a compose file trigger warnings on `up` and `config`.
 
 ## Limitations
 
 - **Pull-only** — no `build:` support; pre-build with `docker build` or `container build`
 - **No restart policy** — services won't auto-restart on crash
-- **Named volumes** persist at `~/.apple-compose/volumes/<project>/` after `down`
-- **virtiofs** — `chown`/`chmod` on mounts fails; workaround: `PGDATA=/tmp/pgdata` for postgres
-- **DNS** — hostname resolution within project networks is unreliable; use IPs or published ports
-- **No multi-file compose** or automatic `docker-compose.override.yml` merging
+- **Named volumes** persist at `~/.apple-compose/volumes/<project>/` after `down` (use `down -v` to remove)
+- **virtiofs** — `chown`/`chmod` on mounts fails; postgres named volumes auto-set `PGDATA=/tmp/pgdata`
+- **Service discovery** — peer IPs are injected into `/etc/hosts`; running peers are recreated when a new service joins the stack
+- **No automatic `compose.override.yml`** — pass override files explicitly with `-f`
+- **Config drift** — compose field changes tracked via config-hash trigger recreation; use `--force-recreate` to override
 
 ### Networking
 
-Creates a per-project network (`<project>_default`). On macOS 26+, containers attach to it and can reach each other by service name when DNS works. Otherwise publish ports and use `localhost`.
+Creates a per-project network (`<project>_default`). Containers get peer service names via `/etc/hosts` (and `extra_hosts`). `ps` shows each container's project-network IP in the ADDRESS column.
 
 ### Named volumes
 
-Host path: `~/.apple-compose/volumes/<project>/<volume>/`. Clean up with `rm -rf ~/.apple-compose/volumes/<project>/`.
+Host path: `~/.apple-compose/volumes/<project>/<volume>/`. Clean up with `apple-compose down -v` or `rm -rf ~/.apple-compose/volumes/<project>/`.
 
 ### Registry auth
 

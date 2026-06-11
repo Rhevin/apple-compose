@@ -1,6 +1,6 @@
 # apple-compose context
 
-Docker Compose CLI for Apple container. No daemon. arm64 only. v0.4.0.
+Docker Compose CLI for Apple container. CLI only — shells out to `container` runtime. arm64 only. v0.4.0.
 
 ## Stack
 Go 1.22+, compose-go/v2, cobra. Shells out to `container` binary.

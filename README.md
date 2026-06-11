@@ -6,7 +6,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Rhevin/apple-compose)](https://goreportcard.com/report/github.com/Rhevin/apple-compose)
 [![Platform](https://img.shields.io/badge/platform-macOS%20arm64-lightgrey)](https://github.com/Rhevin/apple-compose#requirements)
 
-Docker Compose-compatible CLI for [Apple Containers](https://github.com/apple/container). Run `docker-compose.yml` on Apple Silicon — no daemon, no Docker Desktop.
+Docker Compose-compatible CLI for [Apple Containers](https://github.com/apple/container). Same model as `docker compose` — a CLI that orchestrates a container runtime, not a daemon itself. Uses Apple's runtime instead of Docker Desktop / `dockerd`.
 
 ## Requirements
 

@@ -1,6 +1,6 @@
 # AGENTS.md — apple-compose
 
-Docker Compose CLI for Apple container CLI. macOS 26+, arm64. No daemon. v0.4.0. Requires container CLI 1.0.0+.
+Docker Compose CLI for Apple container CLI. macOS 26+, arm64. v0.4.0. Shells out to `container` (like docker compose → dockerd); requires `container system start`.
 
 ## Architecture
 ```

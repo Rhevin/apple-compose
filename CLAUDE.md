@@ -9,7 +9,7 @@ At the start of every session, read `.claude/CONTEXT.md` for full project contex
 - Teardown order is reverse of startup (topological) order
 
 ## What to avoid
-- No daemon process
+- No daemon of its own (shells out to Apple's `container` runtime, like docker compose → dockerd)
 - No Docker socket shim
 - No Kubernetes
 - No custom build support in v0.1

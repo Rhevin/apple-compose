@@ -153,7 +153,7 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		"--name", name,
 		"--label", fmt.Sprintf("%s=%s", LabelProject, project),
 		"--label", fmt.Sprintf("%s=%s", LabelService, svc.Name),
-		"--label", fmt.Sprintf("%s=%s", LabelConfigHash, serviceConfigHash(svc)),
+		"--label", fmt.Sprintf("%s=%s", LabelConfigHash, serviceConfigHash(project, svc)),
 		"--network", network,
 		"--dns-search", network,
 	}
@@ -240,17 +240,7 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		}
 	}
 
-	memLimit := svc.MemLimit
-	cpus := svc.CPUS
-	if svc.Deploy != nil && svc.Deploy.Resources.Limits != nil {
-		limits := svc.Deploy.Resources.Limits
-		if memLimit == 0 {
-			memLimit = limits.MemoryBytes
-		}
-		if cpus == 0 && limits.NanoCPUs > 0 {
-			cpus = limits.NanoCPUs.Value()
-		}
-	}
+	memLimit, cpus := serviceResourceLimits(svc)
 	if memLimit > 0 {
 		args = append(args, "--memory", fmt.Sprintf("%d", int64(memLimit)))
 	}
@@ -290,16 +280,17 @@ func Up(project string, svc types.ServiceConfig, opts UpOptions) error {
 
 	c, err := findContainer(name)
 	if err == nil {
-		if opts.ForceRecreate || configChanged(c, svc) {
+		if opts.ForceRecreate || configChanged(project, c, svc) {
 			reason := "config changed"
 			if opts.ForceRecreate {
 				reason = "force-recreate"
 			}
 			fmt.Printf("  [~] %s (recreating: %s)\n", svc.Name, reason)
-			if err := Down(name, StopOptionsFromService(svc)); err != nil {
-				return err
-			}
-			return createContainer(project, svc)
+			return recreateContainer(project, svc)
+		}
+		if hostsStale(project, c, svc) {
+			fmt.Printf("  [~] %s (recreating: /etc/hosts out of date)\n", svc.Name)
+			return recreateContainer(project, svc)
 		}
 		switch c.Status.State {
 		case "running":
@@ -311,6 +302,14 @@ func Up(project string, svc types.ServiceConfig, opts UpOptions) error {
 		}
 	}
 
+	return createContainer(project, svc)
+}
+
+func recreateContainer(project string, svc types.ServiceConfig) error {
+	name := ContainerName(project, svc.Name)
+	if err := Down(name, StopOptionsFromService(svc)); err != nil {
+		return err
+	}
 	return createContainer(project, svc)
 }
 
@@ -326,6 +325,11 @@ func createContainer(project string, svc types.ServiceConfig) error {
 	args, err := RunArgs(project, svc)
 	if err != nil {
 		return err
+	}
+	if hostsHash, err := hostsPeerHash(project, svc); err != nil {
+		return err
+	} else if hostsHash != "" {
+		args = append(args, "--label", fmt.Sprintf("%s=%s", LabelHostsHash, hostsHash))
 	}
 	if hostsPath != "" {
 		args = injectHostsMount(args, hostsPath)

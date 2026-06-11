@@ -78,6 +78,10 @@ var upCmd = &cobra.Command{
 			if err := waitForServiceReady(project.Name, name, svc); err != nil {
 				return err
 			}
+
+			if err := backend.RefreshPeerHosts(project.Name, name, project.Services); err != nil {
+				return fmt.Errorf("refreshing peer hosts after %q: %w", name, err)
+			}
 		}
 
 		if removeOrphans {

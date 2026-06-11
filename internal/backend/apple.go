@@ -359,9 +359,15 @@ func RemoveNamedVolumes(project string) error {
 	return os.RemoveAll(volDir)
 }
 
-// WaitHealthy polls until a container status is "running" or timeout elapses.
-func WaitHealthy(project, service string, timeout time.Duration) error {
-	return waitRunning(ContainerName(project, service), service, timeout)
+// WaitHealthy blocks until a service is ready: healthy if it defines a healthcheck,
+// otherwise running.
+func WaitHealthy(project string, svc types.ServiceConfig, timeout time.Duration) error {
+	name := ContainerName(project, svc.Name)
+	hc := svc.HealthCheck
+	if hc != nil && !hc.Disable && len(hc.Test) > 0 {
+		return waitHealthcheck(name, svc.Name, hc, timeout)
+	}
+	return waitRunning(name, svc.Name, timeout)
 }
 
 // ContainerRecord is a parsed entry from `container list --format json`.

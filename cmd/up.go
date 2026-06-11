@@ -47,7 +47,7 @@ var upCmd = &cobra.Command{
 		if dryRun {
 			fmt.Printf("Dry run — project %q (%d services)\n\n", project.Name, len(order))
 			for _, name := range order {
-				svc := project.Services[name]
+				svc := backend.PrepareService(project.Services[name])
 				runArgs, err := backend.RunArgs(project.Name, svc)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "  [skip] %s: %v\n", name, err)

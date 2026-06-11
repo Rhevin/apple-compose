@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/rhevin/apple-compose/internal/compose"
 	"github.com/spf13/cobra"
 )
@@ -19,6 +20,12 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "apple-compose",
 	Short: "Docker Compose-compatible orchestrator for Apple Containers",
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if cmd.Name() == "help" || cmd.Name() == "completion" {
+			return
+		}
+		backend.WarnContainerCLIVersion()
+	},
 }
 
 func Execute() {

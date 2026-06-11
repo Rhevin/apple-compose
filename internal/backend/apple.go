@@ -306,16 +306,7 @@ func Up(project string, svc types.ServiceConfig) error {
 
 // WaitHealthy polls until a container status is "running" or timeout elapses.
 func WaitHealthy(project, service string, timeout time.Duration) error {
-	name := ContainerName(project, service)
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		status, err := containerStatus(name)
-		if err == nil && status.State == "running" {
-			return nil
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	return fmt.Errorf("service %q did not become healthy within %s", service, timeout)
+	return waitRunning(ContainerName(project, service), service, timeout)
 }
 
 // ContainerRecord is a parsed entry from `container list --format json`.

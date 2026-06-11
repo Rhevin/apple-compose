@@ -188,6 +188,21 @@ func TestRunArgs_InitAndEnvFile(t *testing.T) {
 	assertContains(t, args, "--env-file", ".env.service")
 }
 
+func TestRunArgs_ResourceLimits(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:     "web",
+		Image:    "nginx:alpine",
+		MemLimit: 512 * 1024 * 1024,
+		CPUS:     1.5,
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--memory", "536870912")
+	assertContains(t, args, "--cpus", "1.50")
+}
+
 func TestRunArgs_ShmSize(t *testing.T) {
 	svc := types.ServiceConfig{
 		Name:    "web",

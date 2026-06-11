@@ -235,11 +235,22 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		}
 	}
 
-	if svc.MemLimit > 0 {
-		args = append(args, "--memory", fmt.Sprintf("%d", int64(svc.MemLimit)))
+	memLimit := svc.MemLimit
+	cpus := svc.CPUS
+	if svc.Deploy != nil && svc.Deploy.Resources.Limits != nil {
+		limits := svc.Deploy.Resources.Limits
+		if memLimit == 0 {
+			memLimit = limits.MemoryBytes
+		}
+		if cpus == 0 && limits.NanoCPUs > 0 {
+			cpus = limits.NanoCPUs.Value()
+		}
 	}
-	if svc.CPUS > 0 {
-		args = append(args, "--cpus", fmt.Sprintf("%.2f", svc.CPUS))
+	if memLimit > 0 {
+		args = append(args, "--memory", fmt.Sprintf("%d", int64(memLimit)))
+	}
+	if cpus > 0 {
+		args = append(args, "--cpus", fmt.Sprintf("%.2f", cpus))
 	}
 	if svc.ShmSize > 0 {
 		args = append(args, "--shm-size", formatByteSize(int64(svc.ShmSize)))

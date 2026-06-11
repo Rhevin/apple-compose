@@ -24,7 +24,7 @@ func resolveProjectName() string {
 	if project, err := loadProject(); err == nil {
 		return project.Name
 	}
-	abs, _ := filepath.Abs(composeFile)
+	abs, _ := filepath.Abs(composeFilesOrDefault()[0])
 	return filepath.Base(filepath.Dir(abs))
 }
 

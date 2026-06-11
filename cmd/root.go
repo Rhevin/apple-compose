@@ -10,10 +10,10 @@ import (
 )
 
 var (
-	composeFile string
-	projectName string
-	envFile     string
-	profiles    []string
+	composeFiles []string
+	projectName  string
+	envFile      string
+	profiles     []string
 )
 
 var rootCmd = &cobra.Command{
@@ -32,9 +32,17 @@ func SetVersion(v string) {
 	rootCmd.Version = v
 }
 
+// composeFilesOrDefault returns explicit -f paths, or docker-compose.yml when none were given.
+func composeFilesOrDefault() []string {
+	if len(composeFiles) > 0 {
+		return composeFiles
+	}
+	return []string{"docker-compose.yml"}
+}
+
 // loadProject loads the compose file honoring all global flags.
 func loadProject() (*types.Project, error) {
-	return compose.Load(composeFile, compose.Options{
+	return compose.Load(composeFilesOrDefault(), compose.Options{
 		ProjectName: projectName,
 		EnvFile:     envFile,
 		Profiles:    profiles,
@@ -42,7 +50,7 @@ func loadProject() (*types.Project, error) {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&composeFile, "file", "f", "docker-compose.yml", "Compose file to use")
+	rootCmd.PersistentFlags().StringArrayVarP(&composeFiles, "file", "f", nil, "Compose file(s) to use")
 	rootCmd.PersistentFlags().StringVarP(&projectName, "project-name", "p", "", "Project name (overrides compose file name)")
 	rootCmd.PersistentFlags().StringVar(&envFile, "env-file", "", "Path to an env file")
 	rootCmd.PersistentFlags().StringArrayVar(&profiles, "profile", nil, "Enable service profiles")

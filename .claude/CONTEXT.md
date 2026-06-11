@@ -1,48 +1,66 @@
 # apple-compose context
 
-Docker Compose CLI for Apple container. CLI only — shells out to `container` runtime. arm64 only. v0.4.0.
+Docker Compose CLI for Apple container. CLI only — shells out to `container` runtime (like docker compose → dockerd). macOS 26+, arm64. Requires `container system start`.
 
 ## Stack
-Go 1.22+, compose-go/v2, cobra. Shells out to `container` binary.
+Go 1.22+, compose-go/v2, cobra. Shells out to `container` binary (1.0.0+).
 
 ## Architecture
 ```
-cmd/ → internal/compose (Load, TopologicalOrder) → internal/backend/apple.go → container CLI
+cmd/ → internal/compose (Load, TopologicalOrder) → internal/backend → container CLI
 ```
 
 ## Key files
-- `cmd/root.go` — global flags, `loadProject()`, `resolveProjectName()`, `resolveTargets()`
-- `cmd/util.go` — `serviceNotFound`, `topologicalOrder`, `serviceTargets`, `resolveContainerName`
-- `internal/backend/apple.go` — `RunArgs`, `Up`, `Down`, `PS`, `ContainerStatus`, `ListContainersForProject`
+- `cmd/root.go` — global flags, `loadProject()`, CLI version check, completions
+- `cmd/up.go` — `depends_on` waits, `--force-recreate`, `--remove-orphans`, `RefreshPeerHosts`
+- `cmd/util.go` — `topologicalOrder`, `serviceTargets`, `stopOptionsForService`
+- `internal/compose/loader.go` — multi-file `-f` merge via compose-go
+- `internal/backend/apple.go` — `RunArgs`, `Up`, `Down`, `PS`, container JSON
+- `internal/backend/config.go` — config-hash drift detection (all RunArgs fields)
+- `internal/backend/healthcheck.go` — `healthcheck` + `depends_on` condition polling
+- `internal/backend/hosts.go` — peer `/etc/hosts` injection, hosts-hash, `RefreshPeerHosts`
+- `internal/backend/volumes.go` — postgres/mysql virtiofs workarounds (`PrepareService`)
+- `internal/backend/unsupported.go` — warn on unsupported compose keys
+- `internal/backend/version.go` — warn if container CLI < 1.0.0 or legacy JSON
 
 ## Naming
 - Container: `{project}-{service}` e.g. `testdata-web`
 - Network: `{project}_default`
 - Volumes: `~/.apple-compose/volumes/{project}/{volume}/`
-- Labels: `com.apple-compose.project`, `com.apple-compose.service`
+- Labels: `com.apple-compose.project`, `com.apple-compose.service`, `com.apple-compose.config-hash`, `com.apple-compose.hosts-hash`
 
 ## Commands (all implemented)
-up, down, ps, logs, pull, exec, run, stop, start, restart, kill, rm, cp, top, stats, images, port, config, ls, prune, login, logout
+up, down, ps, logs, pull, exec, run, stop, start, restart, kill, rm, cp, top, stats, images, port, config, ls, prune, login, logout, completion
+
+Not implemented (stub commands): pause, unpause, events, wait, watch, scale, commit, push
 
 ## Constraints
-- `build:` key → warn + skip (pull-only)
-- No `--restart` flag in Apple CLI → warn + drop
-- Named volumes + virtiofs → `chown` fails → use `PGDATA=/tmp/pgdata`
-- `up` idempotent: skip running, restart stopped, create new
-- DNS: IP works on macOS 26+, hostname resolution broken (vmnet has no DNS)
-- JSON schema (container 1.0.0+): `status.state`, `configuration.id`, `configuration.labels` (map), `configuration.image.reference`, `configuration.publishedPorts`
-- Compose parity: `shm_size` → `--shm-size`; `stop_signal`/`stop_grace_period` → `container stop --signal`/`--time`
-- Commands needing only project name: use `resolveProjectName()` + `resolveTargets()` not `loadProject()`
-- `exec`/`run`: use `FParseErrWhitelist{UnknownFlags: true}` + `SetInterspersed(false)` so container flags (e.g. `--max-time`) aren't parsed by cobra
-- `run bench sh -c "..."`: works only for simple commands — `&&` in the shell string causes cobra to choke; use `--entrypoint sh` + `-c "..."` as workaround in scripts
-- Benchmark: Apple Container containers cannot `apk add` at runtime (no outbound network in containers). Use built-in tools (`dd`, `sha256sum`) only.
+- `build:` → warn + skip (pull-only)
+- `restart:` → unsupported key warning (no `--restart` in Apple CLI)
+- Named volumes + virtiofs → `chown` fails → `PrepareService` auto-sets `PGDATA=/tmp/pgdata` for postgres
+- `up` idempotent: skip running; recreate on config-hash or hosts-hash drift, or `--force-recreate`
+- DNS: inject peer IPs into `/etc/hosts`; `RefreshPeerHosts` recreates stale peers after each `up`
+- JSON (container 1.0.0+): `status.state`, `status.networks`, `configuration.publishedPorts`, `configuration.labels` (map)
+- Compose in `RunArgs`: env, env_file, entrypoint, user, workdir, caps, tmpfs, read_only, ulimits, init, shm_size, deploy.resources.limits, extra_hosts
+- Stop: `stop_signal` / `stop_grace_period` → `container stop --signal` / `--time`
+- Always `loadProject()` in cmd/ — never `compose.Load()` directly
+- Commands needing only project name: `resolveProjectName()` + `resolveTargets()` not `loadProject()`
+- `RunArgs` expects `PrepareService()` first for DB volume workarounds
+- `exec`/`run`: `FParseErrWhitelist{UnknownFlags: true}` + `SetInterspersed(false)` for container flags
+- No auto `compose.override.yml` — pass override files with `-f`
+- Network create: suppress stderr, ignore already-exists
+
+## Apple container CLI
+**Use:** `run`, `stop`, `start`, `delete`, `list`, `logs`, `exec`, `copy`, `kill`, `stats`, `image pull`, `network create/delete/list`, `registry login/logout`
+
+**Do NOT call:** `pause`, `unpause`, `wait`, `commit`, `image push`, `top`, `restart` (use stop+start), `run --restart`
 
 ## Test sample
-`testdata/docker-compose.yml` — nginx + postgres (`PGDATA=/tmp/pgdata`) + redis
+`testdata/docker-compose.yml` — nginx + postgres + redis
 ```sh
 ./apple-compose -f testdata/docker-compose.yml up
 ./apple-compose -p testdata ps
-make test-integration
+make test-integration   # needs: container system start
 ```
 
 ## PR rules

@@ -301,6 +301,17 @@ func TestContainerStatusField_UnmarshalObject(t *testing.T) {
 	}
 }
 
+func TestContainerStatusField_UnmarshalNetworks(t *testing.T) {
+	var s containerStatusField
+	raw := `{"state":"running","networks":[{"network":"p_default","ipv4Address":"192.168.64.2/24"}]}`
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Networks) != 1 || s.Networks[0].IPv4Address != "192.168.64.2/24" {
+		t.Fatalf("networks: %+v", s.Networks)
+	}
+}
+
 func TestAppleContainer_UnmarshalV1(t *testing.T) {
 	raw := `[{"id":"myapp-web","status":{"state":"running","networks":[]},"configuration":{"id":"myapp-web","image":{"reference":"nginx:alpine"},"labels":{"com.apple-compose.project":"myapp","com.apple-compose.service":"web"}}}]`
 	var containers []appleContainer

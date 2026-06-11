@@ -23,7 +23,8 @@ const (
 
 // containerStatusField handles container 1.0.0+ status objects and pre-1.0 strings.
 type containerStatusField struct {
-	State string
+	State    string
+	Networks []containerNetworkStatus
 }
 
 func (s *containerStatusField) UnmarshalJSON(b []byte) error {
@@ -34,12 +35,14 @@ func (s *containerStatusField) UnmarshalJSON(b []byte) error {
 		return json.Unmarshal(b, &s.State)
 	}
 	var obj struct {
-		State string `json:"state"`
+		State    string                   `json:"state"`
+		Networks []containerNetworkStatus `json:"networks"`
 	}
 	if err := json.Unmarshal(b, &obj); err != nil {
 		return err
 	}
 	s.State = obj.State
+	s.Networks = obj.Networks
 	return nil
 }
 
@@ -133,6 +136,7 @@ func DeleteNetwork(project string) {
 }
 
 // RunArgs builds the `container run` argument list for a service.
+// Call PrepareService first to apply virtiofs DB workarounds.
 func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 	if svc.Build != nil {
 		return nil, fmt.Errorf(
@@ -285,6 +289,7 @@ type UpOptions struct {
 // changed or ForceRecreate is set.
 // If it exists but is stopped, it is started without recreating unless recreate is needed.
 func Up(project string, svc types.ServiceConfig, opts UpOptions) error {
+	svc = PrepareService(svc)
 	name := ContainerName(project, svc.Name)
 
 	c, err := findContainer(name)
@@ -314,9 +319,20 @@ func Up(project string, svc types.ServiceConfig, opts UpOptions) error {
 }
 
 func createContainer(project string, svc types.ServiceConfig) error {
+	hostsPath, cleanup, err := writeProjectHostsFile(project, svc)
+	if err != nil {
+		return fmt.Errorf("preparing hosts file: %w", err)
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
 	args, err := RunArgs(project, svc)
 	if err != nil {
 		return err
+	}
+	if hostsPath != "" {
+		args = injectHostsMount(args, hostsPath)
 	}
 	fmt.Printf("  [+] %s\n", svc.Name)
 	cmd := exec.Command(bin, args...)
@@ -550,13 +566,15 @@ func PS(project string) error {
 	}
 
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%-28s %-10s %-35s %-10s %s\n", "NAME", "SERVICE", "IMAGE", "STATUS", "PORTS")
-	fmt.Fprintf(&buf, "%s\n", strings.Repeat("-", 110))
+	fmt.Fprintf(&buf, "%-28s %-10s %-16s %-35s %-10s %s\n",
+		"NAME", "SERVICE", "ADDRESS", "IMAGE", "STATUS", "PORTS")
+	fmt.Fprintf(&buf, "%s\n", strings.Repeat("-", 125))
 	for _, c := range rows {
 		svc := c.Configuration.Labels[LabelService]
 		name := ContainerName(project, svc)
-		fmt.Fprintf(&buf, "%-28s %-10s %-35s %-10s %s\n",
-			name, svc, c.Configuration.Image.Reference, c.Status.State,
+		fmt.Fprintf(&buf, "%-28s %-10s %-16s %-35s %-10s %s\n",
+			name, svc, formatContainerAddresses(c, project),
+			c.Configuration.Image.Reference, c.Status.State,
 			formatPublishedPorts(c.Configuration.PublishedPorts))
 	}
 	fmt.Print(buf.String())

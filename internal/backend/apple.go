@@ -165,6 +165,61 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		args = append(args, "--env", fmt.Sprintf("%s=%s", k, val))
 	}
 
+	for _, ef := range svc.EnvFiles {
+		if ef.Path != "" {
+			args = append(args, "--env-file", ef.Path)
+		}
+	}
+
+	if svc.Entrypoint != nil {
+		if len(svc.Entrypoint) == 0 {
+			args = append(args, "--entrypoint", "")
+		} else {
+			args = append(args, "--entrypoint", strings.Join(svc.Entrypoint, " "))
+		}
+	}
+
+	if svc.User != "" {
+		args = append(args, "--user", svc.User)
+	}
+
+	if svc.WorkingDir != "" {
+		args = append(args, "--workdir", svc.WorkingDir)
+	}
+
+	for _, cap := range svc.CapAdd {
+		args = append(args, "--cap-add", cap)
+	}
+
+	for _, cap := range svc.CapDrop {
+		args = append(args, "--cap-drop", cap)
+	}
+
+	for _, tmpfs := range svc.Tmpfs {
+		args = append(args, "--tmpfs", tmpfs)
+	}
+
+	if svc.ReadOnly {
+		args = append(args, "--read-only")
+	}
+
+	for name, limit := range svc.Ulimits {
+		if limit == nil {
+			continue
+		}
+		var val string
+		if limit.Single != 0 {
+			val = fmt.Sprintf("%d", limit.Single)
+		} else {
+			val = fmt.Sprintf("%d:%d", limit.Soft, limit.Hard)
+		}
+		args = append(args, "--ulimit", fmt.Sprintf("%s=%s", name, val))
+	}
+
+	if svc.Init != nil && *svc.Init {
+		args = append(args, "--init")
+	}
+
 	for _, v := range svc.Volumes {
 		switch v.Type {
 		case "bind":

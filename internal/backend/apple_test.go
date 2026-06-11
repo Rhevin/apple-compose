@@ -95,6 +95,99 @@ func TestRunArgs_BindMount(t *testing.T) {
 	assertContains(t, args, "--volume", "/host/data:/var/lib/postgresql/data")
 }
 
+func TestRunArgs_Entrypoint(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:       "web",
+		Image:      "nginx:alpine",
+		Entrypoint: types.ShellCommand{"/docker-entrypoint.sh"},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--entrypoint", "/docker-entrypoint.sh")
+}
+
+func TestRunArgs_UserAndWorkdir(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:       "web",
+		Image:      "nginx:alpine",
+		User:       "1000:1000",
+		WorkingDir: "/app",
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--user", "1000:1000")
+	assertContains(t, args, "--workdir", "/app")
+}
+
+func TestRunArgs_Capabilities(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:    "web",
+		Image:   "nginx:alpine",
+		CapAdd:  []string{"NET_ADMIN"},
+		CapDrop: []string{"ALL"},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--cap-add", "NET_ADMIN")
+	assertContains(t, args, "--cap-drop", "ALL")
+}
+
+func TestRunArgs_TmpfsAndReadOnly(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:     "web",
+		Image:    "nginx:alpine",
+		Tmpfs:    types.StringList{"/run"},
+		ReadOnly: true,
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--tmpfs", "/run")
+	assertArg(t, args, "--read-only")
+}
+
+func TestRunArgs_Ulimits(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:  "web",
+		Image: "nginx:alpine",
+		Ulimits: map[string]*types.UlimitsConfig{
+			"nproc":  {Single: 65535},
+			"nofile": {Soft: 1024, Hard: 2048},
+		},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--ulimit", "nproc=65535")
+	assertContains(t, args, "--ulimit", "nofile=1024:2048")
+}
+
+func TestRunArgs_InitAndEnvFile(t *testing.T) {
+	init := true
+	svc := types.ServiceConfig{
+		Name:  "web",
+		Image: "nginx:alpine",
+		Init:  &init,
+		EnvFiles: []types.EnvFile{
+			{Path: ".env.service"},
+		},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertArg(t, args, "--init")
+	assertContains(t, args, "--env-file", ".env.service")
+}
+
 func TestRunArgs_ShmSize(t *testing.T) {
 	svc := types.ServiceConfig{
 		Name:    "web",

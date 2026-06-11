@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 )
@@ -92,6 +93,58 @@ func TestRunArgs_BindMount(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertContains(t, args, "--volume", "/host/data:/var/lib/postgresql/data")
+}
+
+func TestRunArgs_ShmSize(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:    "web",
+		Image:   "nginx:alpine",
+		ShmSize: types.UnitBytes(64 * 1024 * 1024),
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--shm-size", "64M")
+}
+
+func TestRunArgs_StopOptionsFromService(t *testing.T) {
+	grace := types.Duration(10 * time.Second)
+	svc := types.ServiceConfig{
+		Name:            "web",
+		StopSignal:      "SIGINT",
+		StopGracePeriod: &grace,
+	}
+	opts := StopOptionsFromService(svc)
+	if opts.Signal != "SIGINT" {
+		t.Errorf("signal: got %q", opts.Signal)
+	}
+	if opts.Timeout != 10 {
+		t.Errorf("timeout: got %d", opts.Timeout)
+	}
+}
+
+func TestFormatByteSize(t *testing.T) {
+	tests := map[int64]string{
+		64 * 1024 * 1024:       "64M",
+		1 * 1024 * 1024:        "1M",
+		2 * 1024 * 1024:        "2M",
+		1 * 1024 * 1024 * 1024: "1G",
+	}
+	for bytes, want := range tests {
+		if got := formatByteSize(bytes); got != want {
+			t.Errorf("formatByteSize(%d) = %q, want %q", bytes, got, want)
+		}
+	}
+}
+
+func TestFormatPublishedPorts(t *testing.T) {
+	got := formatPublishedPorts([]publishedPort{{
+		HostAddress: "0.0.0.0", HostPort: 8080, ContainerPort: 80, Proto: "tcp",
+	}})
+	if got != "0.0.0.0:8080->80/tcp" {
+		t.Errorf("got %q", got)
+	}
 }
 
 func TestRunArgs_RestartWarning(t *testing.T) {

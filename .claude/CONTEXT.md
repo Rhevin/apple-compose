@@ -30,7 +30,8 @@ up, down, ps, logs, pull, exec, run, stop, start, restart, kill, rm, cp, top, st
 - Named volumes + virtiofs → `chown` fails → use `PGDATA=/tmp/pgdata`
 - `up` idempotent: skip running, restart stopped, create new
 - DNS: IP works on macOS 26+, hostname resolution broken (vmnet has no DNS)
-- JSON schema (container 1.0.0+): `status.state`, `configuration.id`, `configuration.labels` (map), `configuration.image.reference`
+- JSON schema (container 1.0.0+): `status.state`, `configuration.id`, `configuration.labels` (map), `configuration.image.reference`, `configuration.publishedPorts`
+- Compose parity: `shm_size` → `--shm-size`; `stop_signal`/`stop_grace_period` → `container stop --signal`/`--time`
 - Commands needing only project name: use `resolveProjectName()` + `resolveTargets()` not `loadProject()`
 - `exec`/`run`: use `FParseErrWhitelist{UnknownFlags: true}` + `SetInterspersed(false)` so container flags (e.g. `--max-time`) aren't parsed by cobra
 - `run bench sh -c "..."`: works only for simple commands — `&&` in the shell string causes cobra to choke; use `--entrypoint sh` + `-c "..."` as workaround in scripts

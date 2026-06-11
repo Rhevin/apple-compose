@@ -14,11 +14,13 @@ var stopCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		proj := resolveProjectName()
 		targets := resolveTargets(proj, args)
+		project, _ := loadProject()
 		fmt.Printf("Stopping project %q\n", proj)
 		for i := len(targets) - 1; i >= 0; i-- {
 			name := targets[i]
 			fmt.Printf("  [stop] %s\n", name)
-			if err := backend.Stop(backend.ContainerName(proj, name)); err != nil {
+			opts := stopOptionsForService(project, name)
+			if err := backend.Stop(backend.ContainerName(proj, name), opts); err != nil {
 				fmt.Printf("         warning: %v\n", err)
 			}
 		}
@@ -49,10 +51,12 @@ var restartCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		proj := resolveProjectName()
 		targets := resolveTargets(proj, args)
+		project, _ := loadProject()
 		fmt.Printf("Restarting project %q\n", proj)
 		for i := len(targets) - 1; i >= 0; i-- {
 			fmt.Printf("  [stop] %s\n", targets[i])
-			_ = backend.Stop(backend.ContainerName(proj, targets[i]))
+			opts := stopOptionsForService(project, targets[i])
+			_ = backend.Stop(backend.ContainerName(proj, targets[i]), opts)
 		}
 		for _, name := range targets {
 			fmt.Printf("  [start] %s\n", name)

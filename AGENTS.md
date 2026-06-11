@@ -34,7 +34,8 @@ cmd/ → internal/compose → internal/backend/apple.go → container CLI
 - Named volumes + virtiofs → `chown` fails → `PGDATA=/tmp/pgdata` workaround
 - `up` idempotent: skip running, restart stopped, create new
 - DNS: IP works macOS 26+, hostname broken (vmnet no DNS, no `--hostname` flag)
-- JSON (container 1.0.0+): `status.state`, `configuration.id`, `configuration.labels` (map); pre-1.0 used string `status`
+- JSON (container 1.0.0+): `status.state`, `configuration.id`, `configuration.labels` (map), `configuration.publishedPorts`; pre-1.0 used string `status`
+- Compose: `shm_size` → `--shm-size`; `stop_signal`/`stop_grace_period` on stop/down/restart
 - Network create: suppress stderr, ignore already-exists
 
 ## Apple container CLI

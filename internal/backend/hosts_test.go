@@ -70,6 +70,15 @@ func TestFormatContainerAddresses(t *testing.T) {
 	}
 }
 
+func TestHostsStale_NoPeers(t *testing.T) {
+	svc := types.ServiceConfig{Name: "web"}
+	c := appleContainer{}
+	c.Configuration.Labels = map[string]string{LabelHostsHash: "stale"}
+	if hostsStale("proj", c, svc) {
+		t.Fatal("expected not stale when no running peers need hosts entries")
+	}
+}
+
 func TestHostsFileContent(t *testing.T) {
 	entries := []hostsEntry{{ip: "10.0.0.2", names: []string{"db", "proj-db"}}}
 	var b strings.Builder

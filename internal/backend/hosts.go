@@ -1,6 +1,8 @@
 package backend
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +11,8 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/types"
 )
+
+const LabelHostsHash = "com.apple-compose.hosts-hash"
 
 type containerNetworkStatus struct {
 	Network     string `json:"network"`
@@ -141,6 +145,65 @@ func uniqueSorted(in []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// hostsPeerHash fingerprints the peer /etc/hosts entries a service should have.
+func hostsPeerHash(project string, svc types.ServiceConfig) (string, error) {
+	entries, err := projectHostsEntries(project, svc)
+	if err != nil {
+		return "", err
+	}
+	if len(entries) == 0 {
+		return "", nil
+	}
+	parts := make([]string, 0, len(entries))
+	for _, e := range entries {
+		parts = append(parts, e.ip+":"+strings.Join(uniqueSorted(e.names), ","))
+	}
+	sort.Strings(parts)
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\n")))
+	return hex.EncodeToString(sum[:8]), nil
+}
+
+func hostsStale(project string, c appleContainer, svc types.ServiceConfig) bool {
+	want, err := hostsPeerHash(project, svc)
+	if err != nil || want == "" {
+		return false
+	}
+	return c.Configuration.Labels[LabelHostsHash] != want
+}
+
+// RefreshPeerHosts recreates running peers whose /etc/hosts is missing the newly started service.
+func RefreshPeerHosts(project, startedService string, services map[string]types.ServiceConfig) error {
+	containers, err := listContainers()
+	if err != nil {
+		return err
+	}
+	for _, c := range containers {
+		if c.Configuration.Labels[LabelProject] != project {
+			continue
+		}
+		if c.Status.State != "running" {
+			continue
+		}
+		peerName := c.Configuration.Labels[LabelService]
+		if peerName == "" || peerName == startedService {
+			continue
+		}
+		svc, ok := services[peerName]
+		if !ok {
+			continue
+		}
+		svc = PrepareService(svc)
+		if !hostsStale(project, c, svc) {
+			continue
+		}
+		fmt.Printf("  [~] %s (refreshing /etc/hosts for %s)\n", peerName, startedService)
+		if err := recreateContainer(project, svc); err != nil {
+			return fmt.Errorf("refreshing hosts for %q: %w", peerName, err)
+		}
+	}
+	return nil
 }
 
 func injectHostsMount(args []string, hostsPath string) []string {

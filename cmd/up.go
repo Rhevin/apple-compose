@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/spf13/cobra"
 )
@@ -68,16 +69,12 @@ var upCmd = &cobra.Command{
 				continue // already warned above
 			}
 
-			if err := backend.Up(project.Name, svc); err != nil {
-				return fmt.Errorf("starting service %q: %w", name, err)
+			if err := waitForDependencies(project, name, svc); err != nil {
+				return err
 			}
 
-			// Wait for service to be running before starting dependents
-			if healthWait > 0 {
-				fmt.Printf("      waiting up to %s for %s...\n", healthWait, name)
-				if err := backend.WaitHealthy(project.Name, name, healthWait); err != nil {
-					fmt.Fprintf(os.Stderr, "  WARNING: %v\n", err)
-				}
+			if err := backend.Up(project.Name, svc); err != nil {
+				return fmt.Errorf("starting service %q: %w", name, err)
 			}
 		}
 		return nil
@@ -86,7 +83,7 @@ var upCmd = &cobra.Command{
 
 func init() {
 	upCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print commands without executing")
-	upCmd.Flags().DurationVar(&healthWait, "wait", 30*time.Second, "Time to wait for each service to be running (0 to disable)")
+	upCmd.Flags().DurationVar(&healthWait, "wait", 30*time.Second, "Max time to wait for each depends_on condition (0 to disable)")
 	upCmd.Flags().BoolVar(&noDeps, "no-deps", false, "Only start named services, skip dependencies")
 }
 
@@ -103,6 +100,36 @@ func joinArgs(args []string) string {
 		}
 	}
 	return out
+}
+
+func waitForDependencies(project *types.Project, service string, svc types.ServiceConfig) error {
+	if healthWait <= 0 {
+		for depName, depCfg := range svc.DependsOn {
+			if depCfg.Condition == types.ServiceConditionHealthy {
+				fmt.Fprintf(os.Stderr,
+					"WARNING: service %q depends on healthy %q but --wait is 0; skipping dependency wait\n",
+					service, depName,
+				)
+			}
+		}
+		return nil
+	}
+
+	for depName, depCfg := range svc.DependsOn {
+		depSvc, err := project.GetService(depName)
+		if err != nil {
+			return fmt.Errorf("service %q: unknown dependency %q: %w", service, depName, err)
+		}
+		cond := depCfg.Condition
+		if cond == "" {
+			cond = types.ServiceConditionStarted
+		}
+		fmt.Printf("      waiting up to %s for %s (%s)...\n", healthWait, depName, cond)
+		if err := backend.WaitForDependency(project.Name, depSvc, cond, healthWait); err != nil {
+			return fmt.Errorf("dependency %q of %q: %w", depName, service, err)
+		}
+	}
+	return nil
 }
 
 func needsQuote(s string) bool {

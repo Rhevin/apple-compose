@@ -48,9 +48,9 @@ Not implemented: `pause`, `unpause`, `events`, `wait`, `watch`, `scale`, `commit
 
 ## Compose file support
 
-**Supported:** `image`, `ports`, `environment`, `volumes`, `depends_on`, `command`, `deploy.resources.limits`, `shm_size`, `stop_signal`, `stop_grace_period`, `profiles`
+**Supported:** `image`, `ports`, `environment`, `volumes`, `depends_on` (with `condition: service_started` / `service_healthy`), `healthcheck` (polled via `container exec` for `service_healthy`), `command`, `deploy.resources.limits`, `shm_size`, `stop_signal`, `stop_grace_period`, `profiles`
 
-**Ignored / skipped:** `build` (warn + skip — pull pre-built images instead), `healthcheck` (use `--wait`), `restart` (no `--restart` in Apple CLI), `secrets`, `configs`, `extends`
+**Ignored / skipped:** `build` (warn + skip — pull pre-built images instead), `restart` (no `--restart` in Apple CLI), `secrets`, `configs`, `extends`
 
 ## Limitations
 

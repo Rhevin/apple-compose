@@ -11,9 +11,11 @@ import (
 )
 
 var (
-	dryRun     bool
-	healthWait time.Duration
-	noDeps     bool
+	dryRun        bool
+	healthWait    time.Duration
+	noDeps        bool
+	forceRecreate bool
+	removeOrphans bool
 )
 
 var upCmd = &cobra.Command{
@@ -73,8 +75,15 @@ var upCmd = &cobra.Command{
 				return err
 			}
 
-			if err := backend.Up(project.Name, svc); err != nil {
+			upOpts := backend.UpOptions{ForceRecreate: forceRecreate}
+			if err := backend.Up(project.Name, svc, upOpts); err != nil {
 				return fmt.Errorf("starting service %q: %w", name, err)
+			}
+		}
+
+		if removeOrphans {
+			if err := backend.RemoveOrphans(project.Name, project.Services); err != nil {
+				return fmt.Errorf("removing orphans: %w", err)
 			}
 		}
 		return nil
@@ -85,6 +94,9 @@ func init() {
 	upCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print commands without executing")
 	upCmd.Flags().DurationVar(&healthWait, "wait", 30*time.Second, "Max time to wait for each depends_on condition (0 to disable)")
 	upCmd.Flags().BoolVar(&noDeps, "no-deps", false, "Only start named services, skip dependencies")
+	upCmd.Flags().BoolVar(&forceRecreate, "force-recreate", false, "Recreate containers even if their configuration hasn't changed")
+	upCmd.Flags().BoolVar(&removeOrphans, "remove-orphans", false, "Remove containers for services not defined in the compose file")
+	upCmd.Flags().BoolP("detach", "d", true, "Detached mode (always enabled; accepted for script compatibility)")
 }
 
 func joinArgs(args []string) string {

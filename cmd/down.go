@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var downVolumes bool
+
 var downCmd = &cobra.Command{
 	Use:   "down",
 	Short: "Stop and remove containers",
@@ -36,6 +38,17 @@ var downCmd = &cobra.Command{
 		}
 
 		backend.DeleteNetwork(project.Name)
+
+		if downVolumes {
+			fmt.Printf("Removing named volumes for project %q\n", project.Name)
+			if err := backend.RemoveNamedVolumes(project.Name); err != nil {
+				fmt.Printf("      warning: %v\n", err)
+			}
+		}
 		return nil
 	},
+}
+
+func init() {
+	downCmd.Flags().BoolVarP(&downVolumes, "volumes", "v", false, "Remove named volumes")
 }

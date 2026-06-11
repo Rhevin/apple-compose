@@ -21,9 +21,31 @@ const (
 	LabelService = "com.apple-compose.service"
 )
 
-// appleContainer matches the actual JSON shape of `container list --format json`.
+// containerStatusField handles container 1.0.0+ status objects and pre-1.0 strings.
+type containerStatusField struct {
+	State string
+}
+
+func (s *containerStatusField) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	if b[0] == '"' {
+		return json.Unmarshal(b, &s.State)
+	}
+	var obj struct {
+		State string `json:"state"`
+	}
+	if err := json.Unmarshal(b, &obj); err != nil {
+		return err
+	}
+	s.State = obj.State
+	return nil
+}
+
+// appleContainer matches the JSON shape of `container list --format json`.
 type appleContainer struct {
-	Status        string `json:"status"`
+	Status        containerStatusField `json:"status"`
 	Configuration struct {
 		ID    string `json:"id"`
 		Image struct {
@@ -53,23 +75,17 @@ func EnsureNetwork(project string) error {
 	}
 
 	var networks []struct {
-		Name string `json:"name"`
+		ID            string `json:"id"`
+		Name          string `json:"name"` // pre-1.0
+		Configuration struct {
+			Name string `json:"name"`
+		} `json:"configuration"`
 	}
-	// Try lowercase first, fall back to uppercase
-	if err := json.Unmarshal(out, &networks); err != nil || len(networks) == 0 {
-		var networksUpper []struct {
-			Name string `json:"Name"`
-		}
-		if err2 := json.Unmarshal(out, &networksUpper); err2 == nil {
-			for _, n := range networksUpper {
-				if n.Name == name {
-					return nil
-				}
-			}
-		}
+	if err := json.Unmarshal(out, &networks); err != nil {
+		return nil
 	}
 	for _, n := range networks {
-		if n.Name == name {
+		if n.ID == name || n.Name == name || n.Configuration.Name == name {
 			return nil
 		}
 	}
@@ -168,7 +184,7 @@ func Up(project string, svc types.ServiceConfig) error {
 
 	status, err := containerStatus(name)
 	if err == nil {
-		switch status {
+		switch status.State {
 		case "running":
 			fmt.Printf("  [=] %s (already running)\n", svc.Name)
 			return nil
@@ -196,12 +212,41 @@ func WaitHealthy(project, service string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		status, err := containerStatus(name)
-		if err == nil && status == "running" {
+		if err == nil && status.State == "running" {
 			return nil
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
 	return fmt.Errorf("service %q did not become healthy within %s", service, timeout)
+}
+
+// ContainerRecord is a parsed entry from `container list --format json`.
+type ContainerRecord struct {
+	Status  string
+	Project string
+	Service string
+}
+
+// ListAllContainers returns every container with apple-compose labels.
+func ListAllContainers() ([]ContainerRecord, error) {
+	containers, err := listContainers()
+	if err != nil {
+		return nil, err
+	}
+	var result []ContainerRecord
+	for _, c := range containers {
+		proj := c.Configuration.Labels[LabelProject]
+		svc := c.Configuration.Labels[LabelService]
+		if proj == "" {
+			continue
+		}
+		result = append(result, ContainerRecord{
+			Status:  c.Status.State,
+			Project: proj,
+			Service: svc,
+		})
+	}
+	return result, nil
 }
 
 func listContainers() ([]appleContainer, error) {
@@ -218,7 +263,11 @@ func listContainers() ([]appleContainer, error) {
 
 // ContainerStatus returns the status of a container by name.
 func ContainerStatus(name string) (string, error) {
-	return containerStatus(name)
+	s, err := containerStatus(name)
+	if err != nil {
+		return "", err
+	}
+	return s.State, nil
 }
 
 // ContainerInfo holds basic info about a running container.
@@ -241,7 +290,7 @@ func ListContainersForProject(project string) ([]ContainerInfo, error) {
 			result = append(result, ContainerInfo{
 				Name:    c.Configuration.ID,
 				Service: c.Configuration.Labels[LabelService],
-				Status:  c.Status,
+				Status:  c.Status.State,
 				Image:   c.Configuration.Image.Reference,
 			})
 		}
@@ -249,17 +298,17 @@ func ListContainersForProject(project string) ([]ContainerInfo, error) {
 	return result, nil
 }
 
-func containerStatus(name string) (string, error) {
+func containerStatus(name string) (containerStatusField, error) {
 	containers, err := listContainers()
 	if err != nil {
-		return "", err
+		return containerStatusField{}, err
 	}
 	for _, c := range containers {
 		if c.Configuration.ID == name {
 			return c.Status, nil
 		}
 	}
-	return "", fmt.Errorf("container %q not found", name)
+	return containerStatusField{}, fmt.Errorf("container %q not found", name)
 }
 
 // Stop sends a stop signal to a container without removing it.
@@ -303,7 +352,7 @@ func PS(project string) error {
 	for _, c := range rows {
 		svc := c.Configuration.Labels[LabelService]
 		name := ContainerName(project, svc)
-		fmt.Fprintf(&buf, "%-30s %-45s %-10s\n", name, c.Configuration.Image.Reference, c.Status)
+		fmt.Fprintf(&buf, "%-30s %-45s %-10s\n", name, c.Configuration.Image.Reference, c.Status.State)
 	}
 	fmt.Print(buf.String())
 	return nil

@@ -11,8 +11,8 @@ Thanks for taking the time to contribute.
 ## Requirements
 
 - Go 1.22+
-- macOS 15+ with Apple Silicon (for integration testing)
-- Apple container CLI installed (`container system start`)
+- macOS 26+ with Apple Silicon (for integration testing)
+- Apple container CLI 1.0.0+ installed (`container system start`)
 
 ## Setup
 

@@ -19,9 +19,9 @@ apple-compose down
 
 ## Requirements
 
-- macOS 15 (Sequoia) or later
+- macOS 26 (Tahoe) or later
 - Apple Silicon (arm64)
-- [Apple container CLI](https://github.com/apple/container) installed and running
+- [Apple container CLI](https://github.com/apple/container) 1.0.0 or later, installed and running
 
 ## Install
 
@@ -192,7 +192,7 @@ These Docker Compose commands have no equivalent in the current Apple container 
 
 | Limitation | Detail |
 |---|---|
-| **macOS 26+ required for networking** | `container network` commands only exist on macOS 26 (Tahoe). On macOS 15 (Sequoia), containers start but cannot reach each other by service name. Use published ports as a workaround. |
+| **macOS 26+ required** | Apple container CLI 1.0.0 requires macOS 26 (Tahoe). Service-name DNS within project networks works on macOS 26+. |
 | **Apple Silicon only** | Apple's container runtime is arm64-only. No x86 support. |
 | **No restart policy** | `restart: always` / `on-failure` / `unless-stopped` are silently unsupported by the Apple container CLI — a warning is printed. Services will not auto-restart on crash. |
 | **No build support** | `build:` keys are detected and skipped with a warning. Pre-build images with `docker build` or `container build` and push to a registry. |
@@ -216,7 +216,7 @@ services:
     image: postgres:16-alpine
 ```
 
-On **macOS 15 (Sequoia)**, network commands are not available. Containers start successfully but service-name DNS does not work. Use published ports as a workaround:
+On older macOS versions (pre-26) or pre-1.0 container CLI releases, network commands may not be available. Containers can start but service-name DNS does not work. Use published ports as a workaround:
 
 ```yaml
 services:

@@ -3,12 +3,10 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strings"
 
-	"encoding/json"
-
+	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/spf13/cobra"
 )
 
@@ -16,20 +14,9 @@ var lsCmd = &cobra.Command{
 	Use:   "ls",
 	Short: "List running apple-compose projects",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		out, err := exec.Command("container", "list", "--all", "--format", "json").Output()
+		containers, err := backend.ListAllContainers()
 		if err != nil {
 			return fmt.Errorf("listing containers: %w", err)
-		}
-
-		var containers []struct {
-			Status        string `json:"status"`
-			Configuration struct {
-				ID     string            `json:"id"`
-				Labels map[string]string `json:"labels"`
-			} `json:"configuration"`
-		}
-		if err := json.Unmarshal(out, &containers); err != nil {
-			return fmt.Errorf("parsing container list: %w", err)
 		}
 
 		type projectInfo struct {
@@ -38,15 +25,10 @@ var lsCmd = &cobra.Command{
 		projects := map[string]*projectInfo{}
 
 		for _, c := range containers {
-			proj := c.Configuration.Labels["com.apple-compose.project"]
-			svc := c.Configuration.Labels["com.apple-compose.service"]
-			if proj == "" {
-				continue
+			if projects[c.Project] == nil {
+				projects[c.Project] = &projectInfo{services: map[string]string{}}
 			}
-			if projects[proj] == nil {
-				projects[proj] = &projectInfo{services: map[string]string{}}
-			}
-			projects[proj].services[svc] = c.Status
+			projects[c.Project].services[c.Service] = c.Status
 		}
 
 		if len(projects) == 0 {

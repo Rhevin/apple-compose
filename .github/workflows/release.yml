@@ -13,7 +13,7 @@ jobs:
     name: GoReleaser
     runs-on: macos-latest  # arm64 binary must be built on macOS
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # full history for changelog
 

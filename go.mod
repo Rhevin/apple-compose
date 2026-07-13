@@ -3,11 +3,11 @@ module github.com/rhevin/apple-compose
 go 1.26.4
 
 require (
-	github.com/compose-spec/compose-go/v2 v2.11.0
+	github.com/compose-spec/compose-go/v2 v2.13.0
 	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.10.2
-	go.yaml.in/yaml/v4 v4.0.0-rc.5
-	golang.org/x/term v0.44.0
+	go.yaml.in/yaml/v4 v4.0.0-rc.6
+	golang.org/x/term v0.45.0
 )
 
 require (
@@ -23,6 +23,6 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )

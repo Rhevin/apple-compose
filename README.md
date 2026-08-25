@@ -16,7 +16,7 @@ Docker Compose-compatible CLI for [Apple Containers](https://github.com/apple/co
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Rhevin/apple-compose/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Rhevin/apple-compose/master/install.sh | sh
 ```
 
 Or [download a release](https://github.com/Rhevin/apple-compose/releases/latest), or `make build` from source.

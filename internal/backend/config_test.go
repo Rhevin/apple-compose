@@ -66,6 +66,22 @@ func TestServiceConfigHash_ChangesOnShmSize(t *testing.T) {
 	}
 }
 
+func TestServiceConfigHash_ChangesOnPlatform(t *testing.T) {
+	a := types.ServiceConfig{Name: "web", Image: "nginx:alpine", Platform: "linux/arm64"}
+	b := types.ServiceConfig{Name: "web", Image: "nginx:alpine", Platform: "linux/amd64"}
+	if serviceConfigHash("myapp", a) == serviceConfigHash("myapp", b) {
+		t.Fatal("expected different hash for different platform")
+	}
+}
+
+func TestServiceConfigHash_ChangesOnDNS(t *testing.T) {
+	a := types.ServiceConfig{Name: "web", Image: "nginx:alpine", DNS: types.StringList{"1.1.1.1"}}
+	b := types.ServiceConfig{Name: "web", Image: "nginx:alpine", DNS: types.StringList{"8.8.8.8"}}
+	if serviceConfigHash("myapp", a) == serviceConfigHash("myapp", b) {
+		t.Fatal("expected different hash for different dns")
+	}
+}
+
 func TestConfigChanged_HashLabel(t *testing.T) {
 	svc := types.ServiceConfig{Name: "web", Image: "nginx:alpine"}
 	c := appleContainer{}

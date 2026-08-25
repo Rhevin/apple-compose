@@ -272,6 +272,37 @@ func TestRunArgs_RestartIgnored(t *testing.T) {
 	}
 }
 
+func TestRunArgs_Platform(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:     "web",
+		Image:    "nginx:alpine",
+		Platform: "linux/amd64",
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--platform", "linux/amd64")
+}
+
+func TestRunArgs_DNS(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:      "web",
+		Image:     "nginx:alpine",
+		DNS:       types.StringList{"1.1.1.1", "8.8.8.8"},
+		DNSSearch: types.StringList{"example.com"},
+		DNSOpts:   types.StringList{"ndots:5"},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--dns", "1.1.1.1")
+	assertContains(t, args, "--dns", "8.8.8.8")
+	assertContains(t, args, "--dns-search", "example.com")
+	assertContains(t, args, "--dns-option", "ndots:5")
+}
+
 func TestContainerName(t *testing.T) {
 	if got := ContainerName("myapp", "web"); got != "myapp-web" {
 		t.Errorf("expected myapp-web, got %s", got)

@@ -54,7 +54,7 @@ Not implemented: `pause`, `unpause`, `events`, `wait`, `watch`, `scale`, `commit
 
 ## Compose file support
 
-**Supported:** `image`, `ports`, `environment`, `env_file`, `volumes`, `depends_on` (`service_started`, `service_healthy`, `service_completed_successfully`), `healthcheck`, `command`, `entrypoint`, `user`, `working_dir`, `cap_add`, `cap_drop`, `tmpfs`, `read_only`, `ulimits`, `init`, `extra_hosts`, `deploy.resources.limits`, `shm_size`, `stop_signal`, `stop_grace_period`, `profiles`
+**Supported:** `image`, `ports`, `environment`, `env_file`, `volumes`, `depends_on` (`service_started`, `service_healthy`, `service_completed_successfully`), `healthcheck`, `command`, `entrypoint`, `user`, `working_dir`, `cap_add`, `cap_drop`, `tmpfs`, `read_only`, `ulimits`, `init`, `extra_hosts`, `platform`, `dns`, `dns_search`, `dns_opt`, `deploy.resources.limits`, `shm_size`, `stop_signal`, `stop_grace_period`, `profiles`
 
 **Warned + skipped:** `build` (pull pre-built images instead), `restart` (no `--restart` in Apple CLI)
 
@@ -68,7 +68,7 @@ Unsupported keys in a compose file trigger warnings on `up` and `config`.
 - **No restart policy** — services won't auto-restart on crash
 - **Named volumes** persist at `~/.apple-compose/volumes/<project>/` after `down` (use `down -v` to remove)
 - **virtiofs** — `chown`/`chmod` on mounts fails; postgres named volumes auto-set `PGDATA=/tmp/pgdata`
-- **Service discovery** — peer IPs are injected into `/etc/hosts`; running peers are recreated when a new service joins the stack
+- **Service discovery** — peer IPs are injected into `/etc/hosts` (files kept under `~/.apple-compose/hosts/`); running peers are recreated when a new service joins the stack
 - **No automatic `compose.override.yml`** — pass override files explicitly with `-f`
 - **Config drift** — compose field changes tracked via config-hash trigger recreation; use `--force-recreate` to override
 
@@ -86,6 +86,8 @@ Host path: `~/.apple-compose/volumes/<project>/<volume>/`. Clean up with `apple-
 apple-compose login registry.example.com
 apple-compose logout ghcr.io
 ```
+
+Apple container CLI 1.3.0+ defaults to HTTPS and no longer accepts `--scheme auto`. For an HTTP registry (for example localhost), pass `--scheme http` on `login` and `pull`.
 
 ## Benchmarks
 

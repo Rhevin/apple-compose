@@ -73,15 +73,32 @@ func TestWarnUnsupportedKeys(t *testing.T) {
 			"web": {
 				Name:     "web",
 				Image:    "nginx:alpine",
-				Platform: "linux/amd64",
+				Hostname: "web.local",
 			},
 		},
 	}
 	var buf bytes.Buffer
 	WarnUnsupportedKeys(&buf, project)
 	out := buf.String()
-	if !strings.Contains(out, `service "web"`) || !strings.Contains(out, "platform") {
+	if !strings.Contains(out, `service "web"`) || !strings.Contains(out, "hostname") {
 		t.Fatalf("unexpected warning output: %q", out)
+	}
+}
+
+func TestUnsupportedServiceKeys_PlatformAndDNSNowSupported(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:      "web",
+		Image:     "nginx:alpine",
+		Platform:  "linux/amd64",
+		DNS:       types.StringList{"1.1.1.1"},
+		DNSSearch: types.StringList{"example.com"},
+		DNSOpts:   types.StringList{"ndots:5"},
+	}
+	keys := UnsupportedServiceKeys(svc)
+	for _, k := range []string{"platform", "dns", "dns_search", "dns_opt"} {
+		if containsKey(keys, k) {
+			t.Errorf("%q should no longer be unsupported, but found in %v", k, keys)
+		}
 	}
 }
 

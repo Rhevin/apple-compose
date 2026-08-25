@@ -25,6 +25,7 @@ cmd/ → internal/compose (Load, TopologicalOrder) → internal/backend → cont
 ## Conventions
 - Container: `{project}-{service}` · Network: `{project}_default`
 - Volumes: `~/.apple-compose/volumes/{project}/{volume}/`
+- Hosts files: `~/.apple-compose/hosts/{project}/{service}/hosts`
 - Labels: `com.apple-compose.project`, `com.apple-compose.service`, `com.apple-compose.config-hash`, `com.apple-compose.hosts-hash`
 - Always `loadProject()` in cmd/ — never `compose.Load()` directly
 - Commands not needing compose file: `resolveProjectName()` + `resolveTargets()`
@@ -44,7 +45,8 @@ cmd/ → internal/compose (Load, TopologicalOrder) → internal/backend → cont
 - `up` idempotent: skip running; recreate on config-hash or hosts-hash drift, or `--force-recreate`
 - DNS: inject peer IPs into `/etc/hosts`; `RefreshPeerHosts` recreates stale peers after each `up`
 - JSON (container 1.0.0+): `status.state`, `status.networks`, `configuration.publishedPorts`
-- Compose mapped in `RunArgs`: env, env_file, entrypoint, user, workdir, caps, tmpfs, read_only, ulimits, init, shm_size, deploy.resources.limits
+- Compose mapped in `RunArgs`: env, env_file, entrypoint, user, workdir, caps, tmpfs, read_only, ulimits, init, shm_size, deploy.resources.limits, platform, dns, dns_search, dns_opt
+- Registry `--scheme`: `http` or `https` only (container CLI 1.3.0 removed `auto`; default is https)
 - Stop: `stop_signal` / `stop_grace_period` → `container stop --signal` / `--time`
 - Network create: suppress stderr, ignore already-exists
 

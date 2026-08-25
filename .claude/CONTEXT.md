@@ -27,6 +27,7 @@ cmd/ → internal/compose (Load, TopologicalOrder) → internal/backend → cont
 - Container: `{project}-{service}` e.g. `testdata-web`
 - Network: `{project}_default`
 - Volumes: `~/.apple-compose/volumes/{project}/{volume}/`
+- Hosts files: `~/.apple-compose/hosts/{project}/{service}/hosts` (persist so `start` after `stop` keeps the virtiofs source)
 - Labels: `com.apple-compose.project`, `com.apple-compose.service`, `com.apple-compose.config-hash`, `com.apple-compose.hosts-hash`
 
 ## Commands (all implemented)
@@ -41,7 +42,8 @@ Not implemented (stub commands): pause, unpause, events, wait, watch, scale, com
 - `up` idempotent: skip running; recreate on config-hash or hosts-hash drift, or `--force-recreate`
 - DNS: inject peer IPs into `/etc/hosts`; `RefreshPeerHosts` recreates stale peers after each `up`
 - JSON (container 1.0.0+): `status.state`, `status.networks`, `configuration.publishedPorts`, `configuration.labels` (map)
-- Compose in `RunArgs`: env, env_file, entrypoint, user, workdir, caps, tmpfs, read_only, ulimits, init, shm_size, deploy.resources.limits, extra_hosts
+- Compose in `RunArgs`: env, env_file, entrypoint, user, workdir, caps, tmpfs, read_only, ulimits, init, shm_size, deploy.resources.limits, extra_hosts, platform, dns, dns_search, dns_opt
+- Registry: `pull --scheme` / `login --scheme` are `http` or `https` only (`auto` removed in container CLI 1.3.0; omit the flag to use the CLI default, https)
 - Stop: `stop_signal` / `stop_grace_period` → `container stop --signal` / `--time`
 - Always `loadProject()` in cmd/ — never `compose.Load()` directly
 - Commands needing only project name: `resolveProjectName()` + `resolveTargets()` not `loadProject()`

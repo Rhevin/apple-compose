@@ -21,20 +21,45 @@ func TestProjectNetworkIP(t *testing.T) {
 }
 
 func TestInjectHostsMount(t *testing.T) {
-	args := []string{"run", "--detach", "--name", "p-web", "nginx:alpine"}
+	args := []string{"run", "--detach", "--name", "p-web", "--label", "k=v", "nginx:alpine"}
 	got := injectHostsMount(args, "/tmp/hosts")
-	want := "/tmp/hosts:/etc/hosts:ro"
-	found := false
-	for _, a := range got {
-		if a == want {
-			found = true
-		}
+	want := []string{
+		"run", "--detach", "--name", "p-web", "--label", "k=v",
+		"--volume", "/tmp/hosts:/etc/hosts:ro", "nginx:alpine",
 	}
-	if !found {
-		t.Fatalf("hosts mount not injected: %v", got)
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("got %v want %v", got, want)
 	}
-	if got[len(got)-1] != "nginx:alpine" {
-		t.Fatalf("image should remain last arg group, got %v", got)
+}
+
+func TestInjectBeforeImage_LabelStaysAFlag(t *testing.T) {
+	args := []string{"run", "--detach", "--name", "p-db", "postgres:17-alpine"}
+	got := injectBeforeImage(args, "--label", "com.apple-compose.hosts-hash=abc")
+	want := []string{
+		"run", "--detach", "--name", "p-db",
+		"--label", "com.apple-compose.hosts-hash=abc",
+		"postgres:17-alpine",
+	}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}
+
+func TestInjectHostsMount_SkipsFlagValues(t *testing.T) {
+	args := []string{
+		"run", "--detach",
+		"--name", "testdata-redis",
+		"--network", "testdata_default",
+		"--dns-search", "testdata_default",
+		"--platform", "linux/arm64",
+		"--dns", "1.1.1.1",
+		"redis:8-alpine",
+	}
+	got := injectHostsMount(args, "/tmp/hosts")
+	assertContains(t, got, "--name", "testdata-redis")
+	assertContains(t, got, "--volume", "/tmp/hosts:/etc/hosts:ro")
+	if got[len(got)-1] != "redis:8-alpine" {
+		t.Fatalf("image should remain last, got %v", got)
 	}
 }
 

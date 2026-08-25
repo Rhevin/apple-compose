@@ -68,6 +68,18 @@ func serviceConfigHash(project string, svc types.ServiceConfig) string {
 	for _, line := range sortedExtraHostLines(svc.ExtraHosts) {
 		hashWrite(h, "extrahost:"+line)
 	}
+	if svc.Platform != "" {
+		hashWrite(h, "platform:"+svc.Platform)
+	}
+	for _, ip := range sortedStrings(svc.DNS) {
+		hashWrite(h, "dns:"+ip)
+	}
+	for _, s := range sortedStrings(svc.DNSSearch) {
+		hashWrite(h, "dnssearch:"+s)
+	}
+	for _, opt := range sortedStrings(svc.DNSOpts) {
+		hashWrite(h, "dnsopt:"+opt)
+	}
 	return hex.EncodeToString(h.Sum(nil)[:8])
 }
 

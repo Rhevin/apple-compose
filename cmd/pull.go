@@ -5,8 +5,11 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/rhevin/apple-compose/internal/backend"
 	"github.com/spf13/cobra"
 )
+
+var pullScheme string
 
 var pullCmd = &cobra.Command{
 	Use:   "pull [service...]",
@@ -34,7 +37,11 @@ var pullCmd = &cobra.Command{
 				continue
 			}
 			fmt.Printf("  [pull] %s (%s)\n", name, svc.Image)
-			c := exec.Command("container", "image", "pull", svc.Image)
+			pullArgs, err := backend.ImagePullArgs(svc.Image, svc.Platform, pullScheme)
+			if err != nil {
+				return err
+			}
+			c := exec.Command("container", pullArgs...)
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 			if err := c.Run(); err != nil {
@@ -43,4 +50,8 @@ var pullCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func init() {
+	pullCmd.Flags().StringVar(&pullScheme, "scheme", "", "Registry scheme (http or https; default is the container CLI default, https as of 1.3.0)")
 }

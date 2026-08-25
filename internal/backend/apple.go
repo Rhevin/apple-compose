@@ -240,6 +240,22 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		}
 	}
 
+	if svc.Platform != "" {
+		args = append(args, "--platform", svc.Platform)
+	}
+
+	for _, ip := range svc.DNS {
+		args = append(args, "--dns", ip)
+	}
+
+	for _, s := range svc.DNSSearch {
+		args = append(args, "--dns-search", s)
+	}
+
+	for _, opt := range svc.DNSOpts {
+		args = append(args, "--dns-option", opt)
+	}
+
 	memLimit, cpus := serviceResourceLimits(svc)
 	if memLimit > 0 {
 		args = append(args, "--memory", fmt.Sprintf("%d", int64(memLimit)))
@@ -314,12 +330,9 @@ func recreateContainer(project string, svc types.ServiceConfig) error {
 }
 
 func createContainer(project string, svc types.ServiceConfig) error {
-	hostsPath, cleanup, err := writeProjectHostsFile(project, svc)
+	hostsPath, err := writeProjectHostsFile(project, svc)
 	if err != nil {
 		return fmt.Errorf("preparing hosts file: %w", err)
-	}
-	if cleanup != nil {
-		defer cleanup()
 	}
 
 	args, err := RunArgs(project, svc)
@@ -329,7 +342,7 @@ func createContainer(project string, svc types.ServiceConfig) error {
 	if hostsHash, err := hostsPeerHash(project, svc); err != nil {
 		return err
 	} else if hostsHash != "" {
-		args = append(args, "--label", fmt.Sprintf("%s=%s", LabelHostsHash, hostsHash))
+		args = injectBeforeImage(args, "--label", fmt.Sprintf("%s=%s", LabelHostsHash, hostsHash))
 	}
 	if hostsPath != "" {
 		args = injectHostsMount(args, hostsPath)

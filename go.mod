@@ -3,7 +3,7 @@ module github.com/rhevin/apple-compose
 go 1.26.4
 
 require (
-	github.com/compose-spec/compose-go/v2 v2.13.0
+	github.com/compose-spec/compose-go/v2 v2.14.0
 	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.10.2
 	go.yaml.in/yaml/v4 v4.0.0-rc.6

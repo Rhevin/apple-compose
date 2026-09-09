@@ -375,6 +375,54 @@ func TestAppleContainer_UnmarshalPreV1(t *testing.T) {
 	}
 }
 
+// TestAppleContainer_UnmarshalContainerCLI141JSON verifies parsing of real
+// container list --format json output from container CLI 1.4.1+, which no longer
+// escapes forward slashes in paths and registry references (apple/container#2205).
+func TestAppleContainer_UnmarshalContainerCLI141JSON(t *testing.T) {
+	raw := `[{
+		"id": "testdata-redis",
+		"status": {
+			"networks": [{
+				"hostname": "testdata-redis",
+				"ipv4Address": "192.168.66.6/24",
+				"network": "testdata_default"
+			}],
+			"state": "running"
+		},
+		"configuration": {
+			"id": "testdata-redis",
+			"image": {"reference": "docker.io/library/redis:8-alpine"},
+			"labels": {
+				"com.apple-compose.config-hash": "ae883a2cedcf3bc0",
+				"com.apple-compose.hosts-hash": "ffeb93371fb7c173",
+				"com.apple-compose.project": "testdata",
+				"com.apple-compose.service": "redis"
+			},
+			"publishedPorts": []
+		}
+	}]`
+	var containers []appleContainer
+	if err := json.Unmarshal([]byte(raw), &containers); err != nil {
+		t.Fatal(err)
+	}
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+	c := containers[0]
+	if c.Configuration.Image.Reference != "docker.io/library/redis:8-alpine" {
+		t.Errorf("image reference: got %q", c.Configuration.Image.Reference)
+	}
+	if c.Status.State != "running" {
+		t.Errorf("status: got %q", c.Status.State)
+	}
+	if len(c.Status.Networks) != 1 || c.Status.Networks[0].IPv4Address != "192.168.66.6/24" {
+		t.Fatalf("networks: %+v", c.Status.Networks)
+	}
+	if c.Configuration.Labels[LabelService] != "redis" {
+		t.Errorf("service label: got %q", c.Configuration.Labels[LabelService])
+	}
+}
+
 // assertContains checks that key and value appear consecutively in args.
 func assertContains(t *testing.T, args []string, key, value string) {
 	t.Helper()

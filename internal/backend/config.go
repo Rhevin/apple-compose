@@ -27,7 +27,15 @@ func serviceConfigHash(project string, svc types.ServiceConfig) string {
 		hashWrite(h, "envfile:"+path)
 	}
 	if svc.Entrypoint != nil {
-		hashWrite(h, "entrypoint:"+strings.Join(svc.Entrypoint, " "))
+		if len(svc.Entrypoint) <= 1 {
+			hashWrite(h, "entrypoint:"+strings.Join(svc.Entrypoint, " "))
+		} else {
+			// First element is --entrypoint; the rest are args. A space-join hashed the same as one string.
+			hashWrite(h, "entrypoint:"+svc.Entrypoint[0])
+			for _, a := range svc.Entrypoint[1:] {
+				hashWrite(h, "entryarg:"+a)
+			}
+		}
 	}
 	hashWrite(h, "user:"+svc.User)
 	hashWrite(h, "workdir:"+svc.WorkingDir)
@@ -128,10 +136,10 @@ func sortedVolumeKeys(project string, vols []types.ServiceVolumeConfig) []string
 	for _, v := range vols {
 		switch v.Type {
 		case "bind":
-			keys = append(keys, fmt.Sprintf("bind:%s:%s", v.Source, v.Target))
+			keys = append(keys, volumeHashKey("bind:"+v.Source, v.Target, v.ReadOnly))
 		case "volume", "":
 			if v.Source != "" {
-				keys = append(keys, fmt.Sprintf("named:%s:%s:%s", project, v.Source, v.Target))
+				keys = append(keys, volumeHashKey("named:"+project+":"+v.Source, v.Target, v.ReadOnly))
 			}
 		default:
 			keys = append(keys, fmt.Sprintf("%s:%s:%s", v.Type, v.Source, v.Target))
@@ -188,10 +196,18 @@ func sortedEnvPairs(env types.MappingWithEquals) []string {
 	return pairs
 }
 
+func volumeHashKey(source, target string, readOnly bool) string {
+	key := source + ":" + target
+	if readOnly {
+		key += ":ro"
+	}
+	return key
+}
+
 func composePortKeys(ports []types.ServicePortConfig) []string {
 	keys := make([]string, 0, len(ports))
 	for _, p := range ports {
-		keys = append(keys, fmt.Sprintf("%s:%d", p.Published, p.Target))
+		keys = append(keys, publishSpec(p))
 	}
 	sort.Strings(keys)
 	return keys

@@ -74,6 +74,75 @@ func TestServiceConfigHash_ChangesOnPlatform(t *testing.T) {
 	}
 }
 
+func TestServiceConfigHash_ChangesOnHostIP(t *testing.T) {
+	a := types.ServiceConfig{
+		Name:  "web",
+		Image: "nginx:alpine",
+		Ports: []types.ServicePortConfig{{Published: "8080", Target: 80}},
+	}
+	b := a
+	b.Ports = []types.ServicePortConfig{{HostIP: "127.0.0.1", Published: "8080", Target: 80}}
+	if serviceConfigHash("myapp", a) == serviceConfigHash("myapp", b) {
+		t.Fatal("expected different hash when host IP is set")
+	}
+}
+
+func TestServiceConfigHash_TCPPortDoesNotChangeHash(t *testing.T) {
+	a := types.ServiceConfig{
+		Name:  "web",
+		Image: "nginx:alpine",
+		Ports: []types.ServicePortConfig{{Published: "8080", Target: 80}},
+	}
+	b := a
+	b.Ports = []types.ServicePortConfig{{Published: "8080", Target: 80, Protocol: "tcp"}}
+	if serviceConfigHash("myapp", a) != serviceConfigHash("myapp", b) {
+		t.Fatal("tcp is the CLI default and must not change the hash")
+	}
+}
+
+func TestServiceConfigHash_ChangesOnProtocol(t *testing.T) {
+	a := types.ServiceConfig{
+		Name:  "dns",
+		Image: "nginx:alpine",
+		Ports: []types.ServicePortConfig{{Published: "5353", Target: 53, Protocol: "tcp"}},
+	}
+	b := a
+	b.Ports = []types.ServicePortConfig{{Published: "5353", Target: 53, Protocol: "udp"}}
+	if serviceConfigHash("myapp", a) == serviceConfigHash("myapp", b) {
+		t.Fatal("expected different hash for udp")
+	}
+}
+
+func TestServiceConfigHash_ChangesOnVolumeReadOnly(t *testing.T) {
+	a := types.ServiceConfig{
+		Name:  "db",
+		Image: "postgres:16",
+		Volumes: []types.ServiceVolumeConfig{
+			{Type: "bind", Source: "/host/data", Target: "/data"},
+		},
+	}
+	b := a
+	b.Volumes = []types.ServiceVolumeConfig{
+		{Type: "bind", Source: "/host/data", Target: "/data", ReadOnly: true},
+	}
+	if serviceConfigHash("myapp", a) == serviceConfigHash("myapp", b) {
+		t.Fatal("expected different hash for a read-only mount")
+	}
+}
+
+func TestServiceConfigHash_EntrypointArgsNotJoined(t *testing.T) {
+	split := types.ServiceConfig{
+		Name:       "web",
+		Image:      "nginx:alpine",
+		Entrypoint: types.ShellCommand{"sh", "-c", "echo hi"},
+	}
+	joined := split
+	joined.Entrypoint = types.ShellCommand{"sh -c echo hi"}
+	if serviceConfigHash("myapp", split) == serviceConfigHash("myapp", joined) {
+		t.Fatal("multi-element entrypoint must not hash like one joined string")
+	}
+}
+
 func TestServiceConfigHash_ChangesOnDNS(t *testing.T) {
 	a := types.ServiceConfig{Name: "web", Image: "nginx:alpine", DNS: types.StringList{"1.1.1.1"}}
 	b := types.ServiceConfig{Name: "web", Image: "nginx:alpine", DNS: types.StringList{"8.8.8.8"}}

@@ -1,6 +1,6 @@
 module github.com/rhevin/apple-compose
 
-go 1.26.4
+go 1.27.0
 
 require (
 	github.com/compose-spec/compose-go/v2 v2.16.2

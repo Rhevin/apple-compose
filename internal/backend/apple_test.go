@@ -40,6 +40,38 @@ func TestRunArgs_PortMapping(t *testing.T) {
 	assertContains(t, args, "--publish", "8080:80")
 }
 
+func TestRunArgs_PublishHostIP(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:  "web",
+		Image: "nginx:alpine",
+		Ports: []types.ServicePortConfig{
+			{HostIP: "127.0.0.1", Published: "8080", Target: 80},
+			{HostIP: "::1", Published: "8080", Target: 80},
+		},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--publish", "127.0.0.1:8080:80")
+	assertContains(t, args, "--publish", "[::1]:8080:80")
+}
+
+func TestRunArgs_PublishProtocol(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:  "dns",
+		Image: "nginx:alpine",
+		Ports: []types.ServicePortConfig{
+			{Published: "5353", Target: 53, Protocol: "udp"},
+		},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--publish", "5353:53/udp")
+}
+
 func TestRunArgs_EnvVars(t *testing.T) {
 	svc := types.ServiceConfig{
 		Name:  "db",
@@ -96,6 +128,21 @@ func TestRunArgs_BindMount(t *testing.T) {
 	assertContains(t, args, "--volume", "/host/data:/var/lib/postgresql/data")
 }
 
+func TestRunArgs_BindMountReadOnly(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:  "db",
+		Image: "postgres:16",
+		Volumes: []types.ServiceVolumeConfig{
+			{Type: "bind", Source: "/host/data", Target: "/var/lib/postgresql/data", ReadOnly: true},
+		},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--volume", "/host/data:/var/lib/postgresql/data:ro")
+}
+
 func TestRunArgs_Entrypoint(t *testing.T) {
 	svc := types.ServiceConfig{
 		Name:       "web",
@@ -107,6 +154,25 @@ func TestRunArgs_Entrypoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertContains(t, args, "--entrypoint", "/docker-entrypoint.sh")
+}
+
+func TestRunArgs_EntrypointArgsPrependedToCommand(t *testing.T) {
+	svc := types.ServiceConfig{
+		Name:       "web",
+		Image:      "nginx:alpine",
+		Entrypoint: types.ShellCommand{"sh", "-c", "echo hi"},
+		Command:    types.ShellCommand{"nginx"},
+	}
+	args, err := RunArgs("myapp", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, args, "--entrypoint", "sh")
+	got := argsAfter(args, "nginx:alpine")
+	want := []string{"-c", "echo hi", "nginx"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("args after image: got %q want %q", got, want)
+	}
 }
 
 func TestRunArgs_UserAndWorkdir(t *testing.T) {
@@ -421,6 +487,15 @@ func TestAppleContainer_UnmarshalContainerCLI141JSON(t *testing.T) {
 	if c.Configuration.Labels[LabelService] != "redis" {
 		t.Errorf("service label: got %q", c.Configuration.Labels[LabelService])
 	}
+}
+
+func argsAfter(args []string, token string) []string {
+	for i, a := range args {
+		if a == token {
+			return args[i+1:]
+		}
+	}
+	return nil
 }
 
 // assertContains checks that key and value appear consecutively in args.

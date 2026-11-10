@@ -159,7 +159,7 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 	}
 
 	for _, p := range svc.Ports {
-		args = append(args, "--publish", fmt.Sprintf("%s:%d", p.Published, p.Target))
+		args = append(args, "--publish", publishSpec(p))
 	}
 
 	for k, v := range svc.Environment {
@@ -176,11 +176,14 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 		}
 	}
 
+	var entryArgs []string
 	if svc.Entrypoint != nil {
 		if len(svc.Entrypoint) == 0 {
 			args = append(args, "--entrypoint", "")
 		} else {
-			args = append(args, "--entrypoint", strings.Join(svc.Entrypoint, " "))
+			// CLI takes one executable. Remaining entrypoint elements are args, prepended to command.
+			args = append(args, "--entrypoint", svc.Entrypoint[0])
+			entryArgs = svc.Entrypoint[1:]
 		}
 	}
 
@@ -228,14 +231,14 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 	for _, v := range svc.Volumes {
 		switch v.Type {
 		case "bind":
-			args = append(args, "--volume", fmt.Sprintf("%s:%s", v.Source, v.Target))
+			args = append(args, "--volume", volumeSpec(v.Source, v.Target, v.ReadOnly))
 		case "volume", "":
 			if v.Source != "" {
 				hostPath := namedVolumePath(project, v.Source)
 				if err := os.MkdirAll(hostPath, 0o755); err != nil {
 					return nil, fmt.Errorf("creating volume dir %q: %w", hostPath, err)
 				}
-				args = append(args, "--volume", fmt.Sprintf("%s:%s", hostPath, v.Target))
+				args = append(args, "--volume", volumeSpec(hostPath, v.Target, v.ReadOnly))
 			}
 		}
 	}
@@ -268,12 +271,36 @@ func RunArgs(project string, svc types.ServiceConfig) ([]string, error) {
 	}
 
 	args = append(args, svc.Image)
-
+	args = append(args, entryArgs...)
 	if len(svc.Command) > 0 {
 		args = append(args, svc.Command...)
 	}
 
 	return args, nil
+}
+
+// publishSpec is [host-ip:]host-port:container-port[/protocol]. TCP is the CLI default.
+func publishSpec(p types.ServicePortConfig) string {
+	spec := fmt.Sprintf("%s:%d", p.Published, p.Target)
+	if p.HostIP != "" {
+		host := p.HostIP
+		if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
+			host = "[" + host + "]"
+		}
+		spec = host + ":" + spec
+	}
+	if p.Protocol != "" && !strings.EqualFold(p.Protocol, "tcp") {
+		spec += "/" + p.Protocol
+	}
+	return spec
+}
+
+func volumeSpec(source, target string, readOnly bool) string {
+	spec := source + ":" + target
+	if readOnly {
+		spec += ":ro"
+	}
+	return spec
 }
 
 func namedVolumePath(project, volume string) string {

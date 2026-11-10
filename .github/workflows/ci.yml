@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: Build & Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -35,14 +35,14 @@ jobs:
 
   vuln-check:
     name: Vulnerability check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     continue-on-error: true
     steps:
       - uses: golang/govulncheck-action@v1
 
   goreleaser-check:
     name: GoReleaser config check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
